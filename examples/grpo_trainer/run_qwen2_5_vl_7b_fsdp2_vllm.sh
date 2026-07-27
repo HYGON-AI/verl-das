@@ -1,0 +1,147 @@
+#!/bin/bash
+for para in $*
+do
+    if [[ $para == --data_path* ]];then
+        data_path=${para#*=}
+    elif [[ $para == --host_file* ]];then
+        host_file=${para#*=}
+    elif [[ $para == --hf_model_path* ]];then
+        hf_model_path=${para#*=}
+    elif [[ $para == --mcore_model_path* ]];then
+        mcore_model_path=${para#*=}
+    elif [[ $para == --save_ckpt_path* ]];then
+        save_ckpt_path=${para#*=}
+    elif [[ $para == --profiling* ]];then
+        profiling=${para#*=}
+    fi
+done
+
+# dependency: vllm==0.18.1, transformers==5.7.0
+CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
+VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
+NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )
+
+# ===================================== Data Config =====================================
+train_file=${data_path}/geo3k/train.parquet
+test_file=${data_path}/geo3k/test.parquet
+train_batch_size=512
+max_prompt_length=1024
+max_response_length=2048
+
+DATA_CONFIG=(
+    data.train_files=${train_file}
+    data.val_files=${test_file}
+    data.image_key=images
+    data.train_batch_size=${train_batch_size}
+    data.max_prompt_length=${max_prompt_length}
+    data.max_response_length=${max_response_length}
+    data.filter_overlong_prompts=True
+    data.truncation='error'
+)
+
+# ===================================== Actor Model & Optim Config =====================================
+actor_lr=1e-6
+ppo_mini_batch_size=128
+ppo_max_token_len_per_gpu=24576
+
+ACTOR_CONFIG=(
+    actor_rollout_ref.model.path=${hf_model_path}/Qwen2.5-VL-7B-Instruct
+    actor_rollout_ref.model.use_fused_kernels=False
+    actor_rollout_ref.model.use_remove_padding=True
+    actor_rollout_ref.model.enable_gradient_checkpointing=True
+    actor_rollout_ref.actor.optim.lr=${actor_lr}
+    actor_rollout_ref.actor.ppo_mini_batch_size=${ppo_mini_batch_size}
+    actor_rollout_ref.actor.use_dynamic_bsz=True
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
+    actor_rollout_ref.actor.use_kl_loss=True
+    actor_rollout_ref.actor.kl_loss_coef=0.01
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl
+    actor_rollout_ref.actor.entropy_coeff=0
+    actor_rollout_ref.actor.strategy=fsdp2
+    actor_rollout_ref.actor.fsdp_config.param_offload=False
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False
+)
+
+# ===================================== Ref Config =====================================
+REF_CONFIG=(
+    actor_rollout_ref.ref.log_prob_use_dynamic_bsz=True
+    actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
+    actor_rollout_ref.ref.fsdp_config.param_offload=True
+)
+
+# ===================================== Rollout Config =====================================
+rollout_tp=2
+rollout_gpu_mem_util=0.4
+rollout_n=5
+enable_sleep=True
+
+ROLLOUT_CONFIG=(
+    actor_rollout_ref.rollout.name=vllm
+    actor_rollout_ref.rollout.tensor_model_parallel_size=${rollout_tp}
+    actor_rollout_ref.rollout.gpu_memory_utilization=${rollout_gpu_mem_util}
+    actor_rollout_ref.rollout.n=${rollout_n}
+    actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True
+    actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
+    actor_rollout_ref.rollout.multi_stage_wake_up=True
+    actor_rollout_ref.rollout.enable_chunked_prefill=False
+    actor_rollout_ref.rollout.enforce_eager=False
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4
+    actor_rollout_ref.rollout.free_cache_engine=${enable_sleep}
+    +actor_rollout_ref.rollout.enable_sleep_mode=${enable_sleep}
+    +actor_rollout_ref.rollout.engine_kwargs.vllm.mm_processor_cache_gb=0
+)
+
+# ===================================== Algorithm Config =====================================
+ALGORITHM_CONFIG=(
+    algorithm.adv_estimator=grpo
+    algorithm.use_kl_in_reward=False
+)
+
+# ===================================== Trainer Config =====================================
+project_name='GRPO-Qwen2.5-VL-7B-Instruct-BASE-GEO3K'
+exp_name='GRPO-Qwen2.5-VL-7B-Instruct-BASE-FSDP2-vLLM'
+ngpus_per_node=8
+
+TRAINER_CONFIG=(
+    trainer.balance_batch=True
+    trainer.logger='["console"]'
+    trainer.project_name=${project_name}
+    trainer.experiment_name=${exp_name}
+    trainer.n_gpus_per_node=${ngpus_per_node}
+    trainer.nnodes=${NNODES}
+    trainer.save_freq=20
+    trainer.test_freq=5
+    trainer.total_epochs=15
+    trainer.default_local_dir=${save_ckpt_path}/ckpts/${project_name}/${exp_name}
+)
+
+# ===================================== Profiler Config =====================================
+PROFILE_CONFIG=(
+    actor_rollout_ref.actor.profiler.enable=True
+    actor_rollout_ref.actor.profiler.ranks=[0,4]
+    actor_rollout_ref.actor.profiler.all_ranks=False
+    actor_rollout_ref.actor.profiler.tool_config.torch.contents=['cuda','cpu']
+    actor_rollout_ref.ref.profiler.enable=True
+    actor_rollout_ref.ref.profiler.ranks=[0,4]
+    actor_rollout_ref.ref.profiler.all_ranks=False
+    actor_rollout_ref.ref.profiler.tool_config.torch.contents=['cuda','cpu']
+    global_profiler.tool=${profiling}
+    global_profiler.steps=[3]
+    global_profiler.save_path=${VERL_PATH}/examples/grpo_trainer/torch_prof
+)
+
+# Conditionally Add Torch Profiling Configuration
+if [[ $profiling == "torch" ]]; then
+    TRAINER_CONFIG+=(${PROFILE_CONFIG[@]})
+fi
+
+# Main GRPO Training Command
+python3 -m verl.trainer.main_ppo \
+    --config-path=config \
+    --config-name=ppo_trainer \
+    ${DATA_CONFIG[@]} \
+    ${ACTOR_CONFIG[@]} \
+    ${REF_CONFIG[@]} \
+    ${ROLLOUT_CONFIG[@]} \
+    ${ALGORITHM_CONFIG[@]} \
+    ${TRAINER_CONFIG[@]} \

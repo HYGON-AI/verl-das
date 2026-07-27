@@ -1,0 +1,25 @@
+sentencepiece 
+py_cpuinfo 
+openai 
+tiktoken 
+xgrammar 
+partial_json_parser 
+msgspec 
+gguf
+mistral_common 
+blake3 
+pybase64 
+codetiming 
+omegaconf 
+tensordict 
+ray[default]>=2.56.0
+hydra-core
+tensorboard
+# vllm>=0.18.1
+torchdata
+peft
+datasets
+mathruler
+pylatexenc
+qwen_vl_utils
+git+https://github.com/ISEEKYAN/mbridge.git@main
