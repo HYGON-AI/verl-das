@@ -23,6 +23,7 @@ QWEN3_MODELS=(
     qwen3_8b_fsdp_vllm
     qwen3_8b_megatron_vllm
     qwen3_vl_8b_fsdp_vllm
+    qwen3_vl_8b_mopd_fsdp_vllm
 )
 
 SUPPORTED_MODELS=(
