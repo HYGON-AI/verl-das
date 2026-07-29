@@ -14,7 +14,7 @@ export PYTHONWARNINGS=ignore
 export TRANSFORMERS_VERBOSITY=error
 export VERL_PATH=${VERL_PATH}
 export TENSORBOARD_DIR=${SAVE_CKPT_PATH}/tensorboard
-export PYTHONPATH=${VERL_PATH}:${VERL_PATH}/third_party/verl:${VERL_PATH}/third_party/Megatron-LM:$PYTHONPATH
+export PYTHONPATH=${VERL_PATH}:${VERL_PATH}/third_party/verl:${VERL_PATH}/third_party/Megatron-LM:${VERL_PATH}/third_party/VeOmni:$PYTHONPATH
 export VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so
 
 RED="\033[31m"
@@ -24,6 +24,7 @@ QWEN3_MODELS=(
     qwen3_8b_megatron_vllm
     qwen3_vl_8b_fsdp_vllm
     qwen3_vl_8b_mopd_fsdp_vllm
+    qwen3_vl_8b_mopd_veomni_vllm
 )
 
 SUPPORTED_MODELS=(

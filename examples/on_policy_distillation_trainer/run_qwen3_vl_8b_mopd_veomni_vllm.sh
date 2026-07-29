@@ -16,7 +16,7 @@ do
     fi
 done
 
-# dependency: vllm==0.18.1, transformers==5.7.0
+# dependency: vllm==0.18.1, transformers==5.9.0, VeOmni==cbb3e012
 CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )
@@ -53,16 +53,18 @@ actor_param_offload=True
 actor_optimizer_offload=True
 
 ACTOR_CONFIG=(
+    model_engine=veomni
     actor_rollout_ref.model.path=${hf_model_path}/Qwen3-VL-8B-Instruct
     actor_rollout_ref.model.use_remove_padding=True
+    actor_rollout_ref.model.use_fused_kernels=True
     actor_rollout_ref.model.enable_gradient_checkpointing=True
-    actor_rollout_ref.actor.use_torch_compile=True
+    actor_rollout_ref.actor.use_torch_compile=False
     actor_rollout_ref.actor.use_dynamic_bsz=${use_dynamic_bsz}
     actor_rollout_ref.actor.optim.lr=${actor_lr}
     actor_rollout_ref.actor.ppo_mini_batch_size=${ppo_mini_batch_size}
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
-    actor_rollout_ref.actor.fsdp_config.param_offload=${actor_param_offload}
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=${actor_optimizer_offload}
+    actor_rollout_ref.actor.veomni.param_offload=${actor_param_offload}
+    actor_rollout_ref.actor.veomni.optimizer_offload=${actor_optimizer_offload}
 )
 
 # ===================================== Rollout Config =====================================
@@ -131,7 +133,7 @@ DISTILL_CONFIG=(
 
 # ===================================== Trainer Config =====================================
 project_name='DISTILLATION-Qwen3-VL-8B-Instruct-BASE-GSM8K-GEO3K'
-exp_name='DISTILLATION-Qwen3-VL-8B-Instruct-BASE-MOPD-FSDP-vLLM'
+exp_name='DISTILLATION-Qwen3-VL-8B-Instruct-BASE-MOPD-VEOMNI-vLLM'
 ngpus_per_node=4
 
 TRAINER_CONFIG=(
