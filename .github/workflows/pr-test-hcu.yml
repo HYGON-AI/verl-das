@@ -1,0 +1,304 @@
+name: PR Test (HCU)
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: pr-test-hcu-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-changes:
+    name: Check changes
+    needs:
+      - authorize-hcu
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runtime: ${{ steps.changes.outputs.runtime }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+
+      - name: Classify changed paths
+        id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${BASE_SHA}" ]]; then
+            BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
+          fi
+
+          runtime=false
+          while IFS= read -r path; do
+            case "${path}" in
+              hcu_verl/*|examples/*|third_party/*|requirements.txt|.gitmodules|scripts/ci/hcu/*|tests/hcu/*|.github/workflows/*)
+                runtime=true
+                ;;
+            esac
+          done < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+
+          echo "runtime=${runtime}" | tee -a "${GITHUB_OUTPUT}"
+
+  quality-gate:
+    name: Quality gate
+    needs:
+      - check-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install quality tools
+        run: python -m pip install "pytest==8.4.1" "PyYAML==6.0.2" "ruff==0.12.2"
+
+      - name: Check PR metadata
+        if: github.event_name == 'pull_request_target'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python scripts/ci/hcu/check_pr_metadata.py
+
+      - name: Run Ruff
+        run: |
+          # Existing adaptation imports intentionally trigger patch side effects.
+          ruff check hcu_verl --ignore F401 --output-format=github
+          ruff check scripts/ci/hcu tests/hcu --output-format=github
+          ruff format --check scripts/ci/hcu tests/hcu
+
+      - name: Compile Python sources
+        run: python -m compileall -q hcu_verl scripts/ci/hcu tests/hcu
+
+      - name: Check license headers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = (Path("hcu_verl"), Path("scripts/ci/hcu"), Path("tests/hcu"))
+          missing = []
+          for root in roots:
+              for path in root.rglob("*"):
+                  if path.suffix not in {".py", ".sh"}:
+                      continue
+                  head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:20])
+                  if "Licensed under the Apache License, Version 2.0" not in head:
+                      missing.append(str(path))
+          if missing:
+              raise SystemExit("Missing Apache-2.0 header:\n" + "\n".join(missing))
+          PY
+
+      - name: Check shell syntax
+        shell: bash
+        run: |
+          find scripts/ci/hcu tests/hcu -type f -name '*.sh' -print0 \
+            | xargs -0 -r -n1 bash -n
+
+      - name: Validate workflow YAML
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          import yaml
+
+          for path in Path(".github/workflows").glob("*.yml"):
+              yaml.safe_load(path.read_text(encoding="utf-8"))
+              print(f"validated {path}")
+          PY
+
+      - name: Run CI unit tests
+        run: pytest -q tests/hcu/unit
+
+  authorize-hcu:
+    name: Authorize HCU execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authorize trusted same-repository PR
+        if: github.event_name == 'pull_request_target'
+        shell: bash
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${HEAD_REPOSITORY}" != "${BASE_REPOSITORY}" ]]; then
+            echo "HCU execution is limited to branches in ${BASE_REPOSITORY}." >&2
+            exit 1
+          fi
+
+          case "${AUTHOR_ASSOCIATION}" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *)
+              echo "HCU execution is not authorized for ${AUTHOR_ASSOCIATION} PRs." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Authorize manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "Manual HCU execution authorized."
+
+  validate-config:
+    name: Validate HCU config
+    needs:
+      - check-changes
+      - quality-gate
+      - authorize-hcu
+    if: needs.check-changes.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
+      VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+      VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+      VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
+      VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
+      VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: false
+
+      - name: Validate repository variables
+        run: python scripts/ci/hcu/check_environment.py config
+
+  hcu-smoke:
+    name: HCU smoke
+    needs:
+      - check-changes
+      - quality-gate
+      - authorize-hcu
+      - validate-config
+    if: needs.check-changes.outputs.runtime == 'true'
+    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 20
+    container:
+      image: ${{ vars.VERL_HCU_PR_IMAGE || 'invalid.local/verl-hcu-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --shm-size=64g
+        --ipc=host
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+    env:
+      VERL_HCU_CI_RUN_ID: pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          clean: true
+
+      - name: Run HCU smoke
+        shell: bash
+        run: bash scripts/ci/hcu/run_hcu_smoke.sh
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: bash scripts/ci/hcu/cleanup.sh
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verl-hcu-pr-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  finish:
+    name: Finish
+    if: always()
+    needs:
+      - check-changes
+      - quality-gate
+      - authorize-hcu
+      - validate-config
+      - hcu-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate required jobs
+        shell: bash
+        env:
+          RUNTIME_CHANGED: ${{ needs.check-changes.outputs.runtime }}
+          CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
+          QUALITY_RESULT: ${{ needs.quality-gate.result }}
+          AUTH_RESULT: ${{ needs.authorize-hcu.result }}
+          CONFIG_RESULT: ${{ needs.validate-config.result }}
+          SMOKE_RESULT: ${{ needs.hcu-smoke.result }}
+        run: |
+          set -euo pipefail
+
+          [[ "${CHECK_CHANGES_RESULT}" == "success" ]]
+          [[ "${QUALITY_RESULT}" == "success" ]]
+          [[ "${AUTH_RESULT}" == "success" ]]
+
+          if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
+            [[ "${CONFIG_RESULT}" == "success" ]]
+            [[ "${SMOKE_RESULT}" == "success" ]]
+          else
+            [[ "${CONFIG_RESULT}" == "skipped" ]]
+            [[ "${SMOKE_RESULT}" == "skipped" ]]
+          fi
+
+          {
+            echo "## HCU PR gate"
+            echo
+            echo "- runtime changed: ${RUNTIME_CHANGED}"
+            echo "- quality gate: ${QUALITY_RESULT}"
+            echo "- HCU authorization: ${AUTH_RESULT}"
+            echo "- config validation: ${CONFIG_RESULT}"
+            echo "- HCU smoke: ${SMOKE_RESULT}"
+          } >> "${GITHUB_STEP_SUMMARY}"

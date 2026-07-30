@@ -1,0 +1,202 @@
+name: Nightly Test (HCU)
+
+on:
+  schedule:
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+    inputs:
+      test_case:
+        description: HCU nightly case
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - vllm
+          - sglang
+
+concurrency:
+  group: nightly-test-hcu
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
+  VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+  VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+  VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
+  VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
+  VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
+
+jobs:
+  validate-config:
+    name: Validate HCU config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: false
+
+      - name: Validate repository variables
+        run: python scripts/ci/hcu/check_environment.py config
+
+  nightly-vllm:
+    name: Qwen2.5-0.5B GRPO vLLM
+    needs:
+      - validate-config
+    if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
+    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 120
+    container:
+      image: ${{ vars.VERL_HCU_VLLM_IMAGE || 'invalid.local/verl-hcu-vllm-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --shm-size=64g
+        --ipc=host
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
+        - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
+    env:
+      VERL_HCU_CI_RUN_ID: nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          clean: true
+
+      - name: Run vLLM nightly case
+        shell: bash
+        run: bash scripts/ci/hcu/run_nightly_case.sh vllm
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: bash scripts/ci/hcu/cleanup.sh
+
+      - name: Upload vLLM logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verl-hcu-nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  nightly-sglang:
+    name: Qwen3-0.6B one-step off-policy SGLang
+    needs:
+      - validate-config
+      - nightly-vllm
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.validate-config.result == 'success' &&
+      (github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'sglang')
+    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 120
+    container:
+      image: ${{ vars.VERL_HCU_SGLANG_IMAGE || 'invalid.local/verl-hcu-sglang-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --shm-size=64g
+        --ipc=host
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
+        - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
+    env:
+      VERL_HCU_CI_RUN_ID: nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          clean: true
+
+      - name: Run SGLang nightly case
+        shell: bash
+        run: bash scripts/ci/hcu/run_nightly_case.sh sglang
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: bash scripts/ci/hcu/cleanup.sh
+
+      - name: Upload SGLang logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verl-hcu-nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  finish:
+    name: Finish
+    if: always()
+    needs:
+      - validate-config
+      - nightly-vllm
+      - nightly-sglang
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate nightly jobs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SELECTED_CASE: ${{ inputs.test_case || 'all' }}
+          CONFIG_RESULT: ${{ needs.validate-config.result }}
+          VLLM_RESULT: ${{ needs.nightly-vllm.result }}
+          SGLANG_RESULT: ${{ needs.nightly-sglang.result }}
+        run: |
+          set -euo pipefail
+
+          [[ "${CONFIG_RESULT}" == "success" ]]
+
+          if [[ "${EVENT_NAME}" == "schedule" || "${SELECTED_CASE}" == "all" ]]; then
+            [[ "${VLLM_RESULT}" == "success" ]]
+            [[ "${SGLANG_RESULT}" == "success" ]]
+          elif [[ "${SELECTED_CASE}" == "vllm" ]]; then
+            [[ "${VLLM_RESULT}" == "success" ]]
+            [[ "${SGLANG_RESULT}" == "skipped" ]]
+          elif [[ "${SELECTED_CASE}" == "sglang" ]]; then
+            [[ "${VLLM_RESULT}" == "skipped" ]]
+            [[ "${SGLANG_RESULT}" == "success" ]]
+          else
+            echo "Unsupported test case: ${SELECTED_CASE}" >&2
+            exit 1
+          fi
+
+          {
+            echo "## HCU Nightly"
+            echo
+            echo "- selected case: ${SELECTED_CASE}"
+            echo "- config validation: ${CONFIG_RESULT}"
+            echo "- vLLM: ${VLLM_RESULT}"
+            echo "- SGLang: ${SGLANG_RESULT}"
+          } >> "${GITHUB_STEP_SUMMARY}"
