@@ -184,7 +184,7 @@ fi
 python3 -m verl.experimental.fully_async_policy.fully_async_main \
     --config-path=config \
     --config-name=fully_async_ppo_trainer \
-    hydra.searchpath=[file://${VERL_PATH}/verl/verl/trainer/config] \
+    hydra.searchpath=[file://${VERL_PATH}/third_party/verl/verl/trainer/config] \
     ${DATA_CONFIG[@]} \
     ${ACTOR_CONFIG[@]} \
     ${REF_CONFIG[@]} \

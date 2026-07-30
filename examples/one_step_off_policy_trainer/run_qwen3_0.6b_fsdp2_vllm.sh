@@ -147,7 +147,7 @@ fi
 python3 -m verl.experimental.one_step_off_policy.main_ppo \
     --config-path=config \
     --config-name=one_step_off_ppo_trainer \
-    hydra.searchpath=[file://${VERL_PATH}/verl/verl/trainer/config] \
+    hydra.searchpath=[file://${VERL_PATH}/third_party/verl/verl/trainer/config] \
     ${DATA_CONFIG[@]} \
     ${ACTOR_CONFIG[@]} \
     ${REF_CONFIG[@]} \
