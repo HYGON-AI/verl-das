@@ -61,7 +61,7 @@ description: Convention for formatting verl on-step-off-policy shell scripts —
 
 4. **Bash arrays**: Each section's params go in a `*_CONFIG=(...)` array. One param per line, 4-space indent. Variables referenced with `${var}` syntax. Hydra `+` prefix preserved for overrides.
 
-5. **Final command**: `python3 -m verl.trainer.main_ppo` with `--config-path`, `--config-name`, `hydra.searchpath`, then `${ARRAY[@]}` expansions. **Every line including the last one MUST end with `\`**, and there must be no blank line after the command. The `hydra.searchpath=[file://${VERL_PATH}/verl/verl/trainer/config]` line MUST be included as the first argument after `--config-name`.
+5. **Final command**: `python3 -m verl.trainer.main_ppo` with `--config-path`, `--config-name`, `hydra.searchpath`, then `${ARRAY[@]}` expansions. **Every line including the last one MUST end with `\`**, and there must be no blank line after the command. The `hydra.searchpath=[file://${VERL_PATH}/third_party/verl/verl/trainer/config]` line MUST be included as the first argument after `--config-name`.
 The `--config-name` depends on the training backend:
    - fsdp/fsdp2: `--config-name=one_step_off_ppo_trainer`
    - megatron: `--config-name=one_step_off_ppo_megatron_trainer`
@@ -71,7 +71,7 @@ The `--config-name` depends on the training backend:
    python3 -m verl.experimental.one_step_off_policy.main_ppo \
        --config-path=config \
        --config-name=one_step_off_ppo_trainer \
-       hydra.searchpath=[file://${VERL_PATH}/verl/verl/trainer/config] \
+       hydra.searchpath=[file://${VERL_PATH}/third_party/verl/verl/trainer/config] \
        ${DATA_CONFIG[@]} \
        ...
        ${TRAINER_CONFIG[@]} \
