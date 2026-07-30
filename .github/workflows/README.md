@@ -22,6 +22,10 @@ All image values must use an immutable digest:
 registry.example.com/project/image@sha256:<64 hexadecimal characters>
 ```
 
+The PR configuration check requires only the runner label and PR image.
+Nightly configuration additionally requires the vLLM and SGLang images plus
+the model and dataset roots.
+
 The runner must provide eight HCU devices, Docker, `/opt/hyhal`, and the model
 and dataset roots configured above. Runtime dependencies belong in the pinned
 images; the workflows do not install the floating dependency from the product

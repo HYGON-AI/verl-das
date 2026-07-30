@@ -24,7 +24,6 @@ permissions:
 
 env:
   VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
-  VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
   VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
   VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
@@ -42,7 +41,7 @@ jobs:
           submodules: false
 
       - name: Validate repository variables
-        run: python scripts/ci/hcu/check_environment.py config
+        run: python scripts/ci/hcu/check_environment.py config --profile nightly
 
   nightly-vllm:
     name: Qwen2.5-0.5B GRPO vLLM

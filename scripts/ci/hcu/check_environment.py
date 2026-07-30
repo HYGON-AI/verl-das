@@ -32,6 +32,22 @@ IMAGE_ENV_VARS = (
     "VERL_HCU_VLLM_IMAGE",
     "VERL_HCU_SGLANG_IMAGE",
 )
+PR_CONFIG_ENV_VARS = (
+    "VERL_HCU_CI_RUNNER_LABEL",
+    "VERL_HCU_PR_IMAGE",
+)
+NIGHTLY_CONFIG_ENV_VARS = (
+    "VERL_HCU_CI_RUNNER_LABEL",
+    "VERL_HCU_VLLM_IMAGE",
+    "VERL_HCU_SGLANG_IMAGE",
+    "VERL_HCU_MODEL_ROOT",
+    "VERL_HCU_DATA_ROOT",
+)
+CONFIG_PROFILES = {
+    "pr": PR_CONFIG_ENV_VARS,
+    "nightly": NIGHTLY_CONFIG_ENV_VARS,
+    "all": CONFIG_ENV_VARS,
+}
 RUNTIME_PATH_ENV_VARS = ("VERL_HCU_MODEL_ROOT", "VERL_HCU_DATA_ROOT")
 IMAGE_DIGEST_PATTERN = re.compile(r"^.+@sha256:[0-9a-fA-F]{64}$")
 
@@ -40,14 +56,20 @@ def visible_device_ids(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
-def validate_config(environment: Mapping[str, str]) -> list[str]:
+def validate_config(
+    environment: Mapping[str, str],
+    profile: str = "all",
+) -> list[str]:
     errors = []
+    required_names = CONFIG_PROFILES[profile]
 
-    for name in CONFIG_ENV_VARS:
+    for name in required_names:
         if not environment.get(name, "").strip():
             errors.append(f"{name} is required")
 
     for name in IMAGE_ENV_VARS:
+        if name not in required_names:
+            continue
         image = environment.get(name, "").strip()
         if image and not IMAGE_DIGEST_PATTERN.fullmatch(image):
             errors.append(f"{name} must be pinned with @sha256:<64 hex digits>")
@@ -93,9 +115,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Validate the verl-das HCU CI environment."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser(
+    config_parser = subparsers.add_parser(
         "config",
         help="validate repository-level HCU CI variables",
+    )
+    config_parser.add_argument(
+        "--profile",
+        choices=tuple(CONFIG_PROFILES),
+        default="all",
+        help="validate only the variables required by this CI workflow",
     )
     runtime_parser = subparsers.add_parser(
         "runtime",
@@ -128,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "config":
-        errors = validate_config(os.environ)
+        errors = validate_config(os.environ, profile=args.profile)
     else:
         errors = validate_runtime(
             os.environ,

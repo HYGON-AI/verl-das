@@ -215,3 +215,15 @@ def test_smoke_and_nightly_apply_patch_before_verl_execution():
     assert nightly.index(prepare_source) < nightly.index('bash "${case_script}"')
     assert "HCU_ADAPT" in smoke
     assert "HCU_ADAPT" in nightly
+
+
+def test_workflows_validate_only_their_own_configuration_profile():
+    pr_workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    nightly_workflow = (
+        ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "check_environment.py config --profile pr" in pr_workflow
+    assert "check_environment.py config --profile nightly" in nightly_workflow
