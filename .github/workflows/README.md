@@ -40,8 +40,9 @@ the default branch's trusted `pull_request_target` workflow.
 
 ## Workflows
 
-- `PR Test (HCU)` always runs the quality gate. Runtime changes additionally run
-  the fixed-submodule, HCU device, patch, worker, and Ray smoke checks.
+- `PR Test (HCU)` always runs the quality gate. Changes under `hcu_verl/`
+  additionally run the fixed-submodule, HCU device, patch, worker, and Ray
+  smoke checks. Other paths do not occupy the HCU runner.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   run serially on the same eight-card runner. Manual runs can select one case.
 

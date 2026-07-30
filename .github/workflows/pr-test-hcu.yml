@@ -53,7 +53,7 @@ jobs:
           runtime=false
           while IFS= read -r path; do
             case "${path}" in
-              hcu_verl/*|examples/*|third_party/*|requirements.txt|.gitmodules|scripts/ci/hcu/*|tests/hcu/*|.github/workflows/*)
+              hcu_verl/*)
                 runtime=true
                 ;;
             esac

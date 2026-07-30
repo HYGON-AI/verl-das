@@ -46,8 +46,11 @@ def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
     assert "third_party/verl" in script
     assert "third_party/Megatron-LM" in script
     assert "third_party/VeOmni" in script
-    assert "hcu_verl/patch_init.py" in script
+    assert 'patch_source="${repo_root}/hcu_verl/patch_init.py"' in script
+    assert 'patch_target="${repo_root}/third_party/verl/verl/__init__.py"' in script
+    assert 'cp -- "${patch_source}" "${patch_tmp}"' in script
     assert "cmp -s" in script
+    assert 'grep -Fq "from hcu_verl import verl_adaptor" "${patch_target}"' in script
     assert "safe.directory" in script
 
 
@@ -180,3 +183,35 @@ def test_pr_hcu_job_is_limited_to_trusted_same_repository_changes():
     assert "github.event.pull_request.author_association" in workflow
     for association in ("OWNER", "MEMBER", "COLLABORATOR"):
         assert association in workflow
+
+
+def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
+    workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    classifier = workflow.split("          runtime=false", maxsplit=1)[1].split(
+        '          echo "runtime=${runtime}"', maxsplit=1
+    )[0]
+
+    assert "hcu_verl/*)" in classifier
+    for unrelated_path in (
+        "examples/*",
+        "third_party/*",
+        "requirements.txt",
+        ".gitmodules",
+        "scripts/ci/hcu/*",
+        "tests/hcu/*",
+        ".github/workflows/*",
+    ):
+        assert unrelated_path not in classifier
+
+
+def test_smoke_and_nightly_apply_patch_before_verl_execution():
+    smoke = read_script("run_hcu_smoke.sh")
+    nightly = read_script("run_nightly_case.sh")
+
+    prepare_source = 'source "${SCRIPT_DIR}/prepare_workspace.sh"'
+    assert smoke.index(prepare_source) < smoke.index("import verl")
+    assert nightly.index(prepare_source) < nightly.index('bash "${case_script}"')
+    assert "HCU_ADAPT" in smoke
+    assert "HCU_ADAPT" in nightly
