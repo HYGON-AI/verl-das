@@ -77,10 +77,7 @@ class CoreAdaptation:
                                 PPO_RAY_RUNTIME_ENV)
 
         # verl.utils
-        from ..utils.device import get_visible_devices_keyword
         from ..utils.flops_counter import _DEVICE_FLOPS
-        VerlAdaptation.register('verl.utils.device.get_visible_devices_keyword',
-                                get_visible_devices_keyword)
         VerlAdaptation.register('verl.utils.flops_counter._DEVICE_FLOPS',
                                 _DEVICE_FLOPS)
 
