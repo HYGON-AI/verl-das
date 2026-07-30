@@ -198,14 +198,17 @@ jobs:
         run: python scripts/ci/hcu/check_environment.py config --profile pr
 
   hcu-smoke:
-    name: HCU smoke
+    name: BW1000 HCU smoke
     needs:
       - check-changes
       - quality-gate
       - authorize-hcu
       - validate-config
     if: needs.check-changes.outputs.runtime == 'true'
-    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 20
     container:
       image: ${{ vars.VERL_HCU_PR_IMAGE || 'invalid.local/verl-hcu-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}

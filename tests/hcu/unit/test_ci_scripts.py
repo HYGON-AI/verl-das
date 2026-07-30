@@ -23,6 +23,10 @@ def read_script(name: str) -> str:
     return (SCRIPT_DIR / name).read_text(encoding="utf-8")
 
 
+def read_grpo_example(name: str) -> str:
+    return (ROOT / "examples" / "grpo_trainer" / name).read_text(encoding="utf-8")
+
+
 def test_all_new_python_and_shell_files_have_hygon_apache_headers():
     files = list(SCRIPT_DIR.glob("*.py")) + list(SCRIPT_DIR.glob("*.sh"))
     files += list((ROOT / "tests" / "hcu").rglob("*.py"))
@@ -134,8 +138,8 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
     assert "grpo_0.6b_gsm8k_fsdp2_sglang_2_6.sh" in sglang
     assert "Qwen3-0.6B" in sglang
     assert "qwen3/Qwen3-0.6B" in sglang
-    assert "data.train_batch_size=6" in sglang
-    assert "actor_rollout_ref.actor.ppo_mini_batch_size=6" in sglang
+    assert "data.train_batch_size=12" in sglang
+    assert "actor_rollout_ref.actor.ppo_mini_batch_size=12" in sglang
     for script in (vllm, sglang):
         assert "VERL_HCU_MODEL_ROOT" in script
         assert "VERL_HCU_DATA_ROOT" in script
@@ -227,3 +231,65 @@ def test_workflows_validate_only_their_own_configuration_profile():
 
     assert "check_environment.py config --profile pr" in pr_workflow
     assert "check_environment.py config --profile nightly" in nightly_workflow
+
+
+def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
+    pr_workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    nightly_workflow = (
+        ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
+    ).read_text(encoding="utf-8")
+
+    assert pr_workflow.count("\n      - bw1000\n") == 1
+    assert nightly_workflow.count("\n      - bw1000\n") == 2
+    assert "name: BW1000 HCU smoke" in pr_workflow
+    assert "name: BW1000 Qwen2.5-0.5B GRPO vLLM" in nightly_workflow
+    assert "name: BW1000 Qwen3-0.6B one-step off-policy SGLang" in nightly_workflow
+
+
+def test_grpo_launcher_preserves_pipeline_failures():
+    script = read_grpo_example("run.sh")
+
+    assert "set -o pipefail" in script
+    assert "ray_status=${PIPESTATUS[0]}" in script
+    assert "training_status=${PIPESTATUS[0]}" in script
+    assert 'exit "${training_status}"' in script
+
+
+def test_qwen25_05b_avoids_unstable_hcu_memory_paths():
+    script = read_grpo_example("run_qwen2_5_0.5b_fsdp_vllm.sh")
+
+    assert "optimizer_offload=False" in script
+    assert "enable_sleep=False" in script
+
+
+def test_one_step_launcher_preserves_pipeline_failures():
+    script = (
+        ROOT / "examples" / "one_step_off_policy_trainer" / "run.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "set -o pipefail" in script
+    assert "ray_status=${PIPESTATUS[0]}" in script
+    assert "training_status=${PIPESTATUS[0]}" in script
+    assert 'exit "${training_status}"' in script
+
+
+def test_sglang_example_uses_vendored_verl_config():
+    script = (
+        ROOT
+        / "examples"
+        / "one_step_off_policy_trainer"
+        / "run_qwen3_0.6b_fsdp2_sglang.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "${VERL_PATH}/third_party/verl/verl/trainer/config" in script
+    assert "${VERL_PATH}/verl/verl/trainer/config" not in script
+
+
+def test_ray_bootstrap_does_not_kill_its_exporting_mpirun_parent():
+    script = (
+        ROOT / "examples" / "scripts" / "pstart_ray.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "pkill -9 -f VLLM" not in script

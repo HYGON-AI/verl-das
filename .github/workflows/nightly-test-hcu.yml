@@ -44,11 +44,14 @@ jobs:
         run: python scripts/ci/hcu/check_environment.py config --profile nightly
 
   nightly-vllm:
-    name: Qwen2.5-0.5B GRPO vLLM
+    name: BW1000 Qwen2.5-0.5B GRPO vLLM
     needs:
       - validate-config
     if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
-    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 120
     container:
       image: ${{ vars.VERL_HCU_VLLM_IMAGE || 'invalid.local/verl-hcu-vllm-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
@@ -97,7 +100,7 @@ jobs:
           retention-days: 14
 
   nightly-sglang:
-    name: Qwen3-0.6B one-step off-policy SGLang
+    name: BW1000 Qwen3-0.6B one-step off-policy SGLang
     needs:
       - validate-config
       - nightly-vllm
@@ -106,7 +109,10 @@ jobs:
       !cancelled() &&
       needs.validate-config.result == 'success' &&
       (github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'sglang')
-    runs-on: ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 120
     container:
       image: ${{ vars.VERL_HCU_SGLANG_IMAGE || 'invalid.local/verl-hcu-sglang-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}

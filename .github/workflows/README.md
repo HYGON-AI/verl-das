@@ -26,10 +26,12 @@ The PR configuration check requires only the runner label and PR image.
 Nightly configuration additionally requires the vLLM and SGLang images plus
 the model and dataset roots.
 
-The runner must provide eight HCU devices, Docker, `/opt/hyhal`, and the model
-and dataset roots configured above. Runtime dependencies belong in the pinned
-images; the workflows do not install the floating dependency from the product
-`requirements.txt`.
+The current PR smoke and nightly model baselines run on an eight-card BW1000
+runner. The runner must have the `bw1000` label and provide Docker,
+`/opt/hyhal`, and the model and dataset roots configured above. Runtime
+dependencies belong in the pinned images; the workflows do not install the
+floating dependency from the product `requirements.txt`. BW1100 coverage will
+be added as a separate labeled test lane when a runner is available.
 
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU

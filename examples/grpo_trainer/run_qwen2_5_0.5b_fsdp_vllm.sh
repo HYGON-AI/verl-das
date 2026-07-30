@@ -42,7 +42,8 @@ train_prompt_mini_bsz=256
 use_kl_loss=True
 kl_loss_coef=0.001
 param_offload=True
-optimizer_offload=True
+# Avoid HCU CuMem sleep-mode and optimizer CPU-offload allocator failures.
+optimizer_offload=False
 
 ACTOR_CONFIG=(
     actor_rollout_ref.model.path=${hf_model_path}/Qwen2.5-0.5B-Instruct
@@ -69,7 +70,7 @@ REF_CONFIG=(
 n_resp_per_prompt=5
 gen_tp=1
 gpu_memory_utilization=0.5
-enable_sleep=True
+enable_sleep=False
 
 ROLLOUT_CONFIG=(
     actor_rollout_ref.rollout.name=vllm

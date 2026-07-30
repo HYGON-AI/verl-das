@@ -1,4 +1,6 @@
 #!/bin/bash
+set -o pipefail
+
 for para in $*
 do
     if [[ $para == --model_name* ]];then
@@ -70,7 +72,11 @@ mpirun -v \
     --mca plm_rsh_args "-p ${PORT}" \
     ${env_args[@]} \
     bash ../scripts/pstart_ray.sh ${head_ip} ${HOST_FILE} 2>&1 | tee ${LOG_PATH}
-wait
+ray_status=${PIPESTATUS[0]}
+if [[ ${ray_status} -ne 0 ]]; then
+    echo -e "${RED}Ray startup failed with status ${ray_status}${RESET}"
+    exit "${ray_status}"
+fi
 
 # hcu verl patch
 cp ${VERL_PATH}/hcu_verl/patch_init.py ${VERL_PATH}/third_party/verl/verl/__init__.py
@@ -82,4 +88,5 @@ bash run_${model_name}.sh \
     --mcore_model_path=${MCORE_MODEL_PATH} \
     --save_ckpt_path=${SAVE_CKPT_PATH} \
     --profiling=${PROFILING} 2>&1 | tee -a ${LOG_PATH}
-wait
+training_status=${PIPESTATUS[0]}
+exit "${training_status}"

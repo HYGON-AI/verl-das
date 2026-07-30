@@ -45,10 +45,10 @@ export NGPUS_PER_NODE=8
 export RAY_DATA_HOME="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}/${VERL_HCU_CI_RUN_ID:-local}"
 
 bash "${BASELINE}" \
-    data.train_batch_size=6 \
+    data.train_batch_size=12 \
     data.max_prompt_length=512 \
     data.max_response_length=256 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=12 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.n=2 \
