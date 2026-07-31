@@ -152,11 +152,17 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
 
 
 def test_ci_case_inventory_registers_requested_cases():
-    cases = (ROOT / "tests" / "hcu" / "ci_cases.yaml").read_text(encoding="utf-8")
+    pr_cases = (ROOT / "tests" / "hcu" / "ci_cases.yaml").read_text(
+        encoding="utf-8"
+    )
+    nightly_cases = (
+        ROOT / "tests" / "hcu" / "nightly" / "bw1000" / "ci_cases.yaml"
+    ).read_text(encoding="utf-8")
 
-    assert "pr_smoke:" in cases
-    assert "nightly_vllm:" in cases
-    assert "nightly_sglang:" in cases
+    assert "pr_smoke:" in pr_cases
+    assert "nightly_" not in pr_cases
+    assert "nightly_vllm:" in nightly_cases
+    assert "nightly_sglang:" in nightly_cases
 
 
 def test_nightly_sglang_does_not_start_after_workflow_cancellation():
@@ -243,9 +249,12 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
 
     assert pr_workflow.count("\n      - bw1000\n") == 1
     assert nightly_workflow.count("\n      - bw1000\n") == 2
-    assert "name: BW1000 HCU smoke" in pr_workflow
-    assert "name: BW1000 Qwen2.5-0.5B GRPO vLLM" in nightly_workflow
-    assert "name: BW1000 Qwen3-0.6B one-step off-policy SGLang" in nightly_workflow
+    assert "name: BW1000" not in pr_workflow
+    assert "name: BW1000" not in nightly_workflow
+    workflow_readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "tests/hcu/nightly/bw1000/ci_cases.yaml" in workflow_readme
 
 
 def test_grpo_launcher_preserves_pipeline_failures():

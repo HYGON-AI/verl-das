@@ -198,7 +198,7 @@ jobs:
         run: python scripts/ci/hcu/check_environment.py config --profile pr
 
   hcu-smoke:
-    name: BW1000 HCU smoke
+    name: HCU smoke
     needs:
       - check-changes
       - quality-gate

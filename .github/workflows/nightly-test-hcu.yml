@@ -44,7 +44,7 @@ jobs:
         run: python scripts/ci/hcu/check_environment.py config --profile nightly
 
   nightly-vllm:
-    name: BW1000 Qwen2.5-0.5B GRPO vLLM
+    name: Qwen2.5-0.5B GRPO vLLM
     needs:
       - validate-config
     if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
@@ -100,7 +100,7 @@ jobs:
           retention-days: 14
 
   nightly-sglang:
-    name: BW1000 Qwen3-0.6B one-step off-policy SGLang
+    name: Qwen3-0.6B one-step off-policy SGLang
     needs:
       - validate-config
       - nightly-vllm

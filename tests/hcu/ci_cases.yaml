@@ -2,13 +2,3 @@ pr_smoke:
   script: scripts/ci/hcu/run_hcu_smoke.sh
   required_gpus: 8
   timeout_minutes: 20
-
-nightly_vllm:
-  script: scripts/ci/hcu/run_nightly_case.sh vllm
-  required_gpus: 8
-  timeout_minutes: 120
-
-nightly_sglang:
-  script: scripts/ci/hcu/run_nightly_case.sh sglang
-  required_gpus: 8
-  timeout_minutes: 120
