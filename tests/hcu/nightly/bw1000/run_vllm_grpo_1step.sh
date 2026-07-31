@@ -59,7 +59,10 @@ bash "${BASELINE}" \
     "data.val_files=${TEST_FILE}" \
     data.train_batch_size=8 \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     actor_rollout_ref.rollout.n=2 \
+    actor_rollout_ref.rollout.free_cache_engine=False \
+    +actor_rollout_ref.rollout.enable_sleep_mode=False \
     trainer.logger='["console"]' \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \

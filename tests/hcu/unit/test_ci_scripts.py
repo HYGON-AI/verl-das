@@ -23,10 +23,6 @@ def read_script(name: str) -> str:
     return (HCU_TEST_DIR / name).read_text(encoding="utf-8")
 
 
-def read_grpo_example(name: str) -> str:
-    return (ROOT / "examples" / "grpo_trainer" / name).read_text(encoding="utf-8")
-
-
 def test_all_new_python_and_shell_files_have_hygon_apache_headers():
     files = list(HCU_TEST_DIR.rglob("*.py")) + list(HCU_TEST_DIR.rglob("*.sh"))
 
@@ -277,48 +273,39 @@ def test_ci_support_scripts_live_under_hcu_tests():
     assert 'case_dir="${SCRIPT_DIR}/${accelerator}"' in nightly_runner
 
 
-def test_grpo_launcher_preserves_pipeline_failures():
-    script = read_grpo_example("run.sh")
+def test_nightly_dispatch_preserves_pipeline_failures():
+    script = read_script("nightly/run_nightly_case.sh")
 
-    assert "set -o pipefail" in script
-    assert "ray_status=${PIPESTATUS[0]}" in script
-    assert "training_status=${PIPESTATUS[0]}" in script
-    assert 'exit "${training_status}"' in script
-
-
-def test_qwen25_05b_avoids_unstable_hcu_memory_paths():
-    script = read_grpo_example("run_qwen2_5_0.5b_fsdp_vllm.sh")
-
-    assert "optimizer_offload=False" in script
-    assert "enable_sleep=False" in script
+    assert "set -euo pipefail" in script
+    assert "case_status=${PIPESTATUS[0]}" in script
+    assert 'exit "${case_status}"' in script
 
 
-def test_one_step_launcher_preserves_pipeline_failures():
-    script = (ROOT / "examples" / "one_step_off_policy_trainer" / "run.sh").read_text(
-        encoding="utf-8"
-    )
+def test_vllm_case_avoids_unstable_hcu_memory_paths():
+    script = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
 
-    assert "set -o pipefail" in script
-    assert "ray_status=${PIPESTATUS[0]}" in script
-    assert "training_status=${PIPESTATUS[0]}" in script
-    assert 'exit "${training_status}"' in script
+    assert "actor_rollout_ref.actor.fsdp_config.optimizer_offload=False" in script
+    assert "actor_rollout_ref.rollout.free_cache_engine=False" in script
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" in script
 
 
-def test_sglang_example_uses_vendored_verl_config():
-    script = (
-        ROOT
-        / "examples"
-        / "one_step_off_policy_trainer"
-        / "run_qwen3_0.6b_fsdp2_sglang.sh"
-    ).read_text(encoding="utf-8")
+def test_nightly_cases_use_vendored_verl_baselines():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
 
-    assert "${VERL_PATH}/third_party/verl/verl/trainer/config" in script
-    assert "${VERL_PATH}/verl/verl/trainer/config" not in script
+    assert "${REPO_ROOT}/third_party/verl/examples/" in vllm
+    assert "${REPO_ROOT}/third_party/verl/verl/experimental/" in sglang
+    assert "${REPO_ROOT}/examples/" not in vllm
+    assert "${REPO_ROOT}/examples/" not in sglang
 
 
-def test_ray_bootstrap_does_not_kill_its_exporting_mpirun_parent():
-    script = (ROOT / "examples" / "scripts" / "pstart_ray.sh").read_text(
-        encoding="utf-8"
-    )
-
-    assert "pkill -9 -f VLLM" not in script
+def test_hcu_ci_does_not_read_or_modify_product_examples():
+    shell_examples_ref = "${REPO_ROOT}/" + "examples/"
+    python_examples_ref = "ROOT / " + '"examples"'
+    for subdir in ("ci", "pr", "nightly"):
+        for path in (HCU_TEST_DIR / subdir).rglob("*"):
+            if path.suffix not in {".py", ".sh", ".yaml", ".yml"}:
+                continue
+            text = path.read_text(encoding="utf-8")
+            assert shell_examples_ref not in text, path
+            assert python_examples_ref not in text, path
