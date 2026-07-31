@@ -22,7 +22,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_pr_metadata.py"
-OFFICIAL_MODULES = {
+ALLOWED_SCOPES = {
+    "attention",
+    "kv_cache",
+    "kernel",
+    "comm",
+    "runtime",
+    "moe",
     "fsdp",
     "megatron",
     "veomni",
@@ -54,6 +60,7 @@ OFFICIAL_MODULES = {
     "reward",
     "fully_async",
     "one_step_off",
+    "hcu",
 }
 
 
@@ -65,20 +72,21 @@ def load_module():
     return module
 
 
-def test_allowed_modules_match_official_list_plus_hcu():
+def test_allowed_scopes_match_supported_modules():
     module = load_module()
 
-    assert set(module.ALLOWED_MODULES) == OFFICIAL_MODULES | {"hcu"}
+    assert set(module.ALLOWED_SCOPES) == ALLOWED_SCOPES
 
 
 @pytest.mark.parametrize(
     "title",
     [
-        "[hcu] feat: add HCU CI",
-        "[hcu,ci] fix: preserve runtime env",
-        "[1/N] [ci] chore: add smoke coverage",
-        "[2/3][BREAKING][hcu] refactor: update patch loading",
-        "[BREAKING] [tests] test: cover metadata",
+        "ci(hcu): add HCU CI",
+        "fix(runtime): preserve runtime env",
+        "docs(ci): document smoke coverage",
+        "perf(attention): improve kernel latency",
+        "build(docker): pin image digest",
+        "test(tests): cover metadata",
     ],
 )
 def test_validate_metadata_accepts_valid_titles(title):
@@ -87,18 +95,18 @@ def test_validate_metadata_accepts_valid_titles(title):
     assert module.validate_metadata(title, "Non-empty PR description.") == []
 
 
-def test_validate_metadata_rejects_invalid_module():
+def test_validate_metadata_rejects_invalid_scope():
     module = load_module()
 
-    errors = module.validate_metadata("[unknown] feat: add check", "body")
+    errors = module.validate_metadata("feat(unknown): add check", "body")
 
-    assert any("unknown" in error and "module" in error.lower() for error in errors)
+    assert any("unknown" in error and "scope" in error.lower() for error in errors)
 
 
 def test_validate_metadata_rejects_invalid_type():
     module = load_module()
 
-    errors = module.validate_metadata("[hcu] docs: explain check", "body")
+    errors = module.validate_metadata("style(hcu): explain check", "body")
 
     assert any("type" in error.lower() for error in errors)
 
@@ -106,12 +114,13 @@ def test_validate_metadata_rejects_invalid_type():
 @pytest.mark.parametrize(
     "title",
     [
-        "[hcu] feat:",
-        "[hcu] feat:   ",
-        "[1/N] [BREAKING] [hcu] fix:",
+        "feat(hcu):",
+        "feat(hcu):   ",
+        "feat(hcu): Add uppercase subject",
+        f"feat(hcu): {'a' * 73}",
     ],
 )
-def test_validate_metadata_rejects_empty_title_description(title):
+def test_validate_metadata_rejects_invalid_subject(title):
     module = load_module()
 
     assert module.validate_metadata(title, "body")
@@ -121,7 +130,7 @@ def test_validate_metadata_rejects_empty_title_description(title):
 def test_validate_metadata_rejects_blank_pr_body(body):
     module = load_module()
 
-    errors = module.validate_metadata("[hcu] feat: valid title", body)
+    errors = module.validate_metadata("feat(hcu): add valid title", body)
 
     assert any("description" in error.lower() for error in errors)
 
@@ -129,13 +138,14 @@ def test_validate_metadata_rejects_blank_pr_body(body):
 @pytest.mark.parametrize(
     "title",
     [
-        "[N/3] [hcu] feat: invalid numerator",
-        "[1/0] [hcu] feat: invalid denominator",
-        "[1/N] [BREAKING] feat: missing modules",
-        "[BREAKING] [1/N] [hcu] feat: wrong prefix order",
+        "[hcu] feat: legacy format",
+        "feat: missing scope",
+        "feat(hcu) missing colon",
+        "feat(hcu):add missing space",
+        "FEAT(hcu): add uppercase type",
     ],
 )
-def test_validate_metadata_rejects_invalid_prefix_forms(title):
+def test_validate_metadata_rejects_invalid_title_forms(title):
     module = load_module()
 
     assert module.validate_metadata(title, "body")
@@ -145,7 +155,7 @@ def test_cli_reads_pr_title_and_body_from_environment():
     environment = os.environ.copy()
     environment.update(
         {
-            "PR_TITLE": "[hcu,ci] feat: add HCU checks",
+            "PR_TITLE": "ci(hcu): add PR and nightly validation",
             "PR_BODY": "Adds local static and HCU container checks.",
         }
     )
@@ -164,7 +174,7 @@ def test_cli_reads_pr_title_and_body_from_environment():
 
 def test_cli_returns_nonzero_for_invalid_metadata():
     environment = os.environ.copy()
-    environment.update({"PR_TITLE": "[unknown] docs:", "PR_BODY": "   "})
+    environment.update({"PR_TITLE": "style(unknown): Bad title", "PR_BODY": "   "})
 
     result = subprocess.run(
         [sys.executable, str(MODULE_PATH)],

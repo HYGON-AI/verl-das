@@ -17,7 +17,13 @@ import re
 import sys
 from collections.abc import Sequence
 
-ALLOWED_MODULES = (
+ALLOWED_SCOPES = (
+    "attention",
+    "kv_cache",
+    "kernel",
+    "comm",
+    "runtime",
+    "moe",
     "fsdp",
     "megatron",
     "veomni",
@@ -51,15 +57,23 @@ ALLOWED_MODULES = (
     "one_step_off",
     "hcu",
 )
-ALLOWED_TYPES = ("feat", "fix", "refactor", "chore", "test")
-PROGRESS_PATTERN = r"(?:\[(?P<part>[1-9]\d*)/(?P<total>[1-9]\d*|N)\]\s*)?"
-BREAKING_PATTERN = r"(?:\[BREAKING\]\s*)?"
-TITLE_PATTERN = re.compile(
-    rf"^{PROGRESS_PATTERN}{BREAKING_PATTERN}"
-    r"\[(?P<modules>[a-z_]+(?:\s*,\s*[a-z_]+)*)\]\s+"
-    rf"(?P<type>{'|'.join(ALLOWED_TYPES)}):\s*(?P<description>\S.*)$",
-    re.IGNORECASE,
+ALLOWED_TYPES = (
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "docs",
+    "test",
+    "build",
+    "ci",
+    "chore",
 )
+TITLE_PATTERN = re.compile(
+    rf"^(?P<type>{'|'.join(ALLOWED_TYPES)})"
+    r"\((?P<scope>[a-z][a-z0-9_-]*)\): "
+    r"(?P<subject>\S.*)$"
+)
+MAX_SUBJECT_LENGTH = 72
 
 
 def validate_title(title: str) -> list[str]:
@@ -67,27 +81,24 @@ def validate_title(title: str) -> list[str]:
     match = TITLE_PATTERN.fullmatch(stripped_title)
     if not match:
         return [
-            (
-                "PR title must match: optional [1/N], optional [BREAKING], "
-                "[module[,module]] type: description"
-            )
+            "PR title must match: type(scope): subject; "
+            f"type must be one of {', '.join(ALLOWED_TYPES)}"
         ]
 
-    modules = tuple(
-        module.strip().lower() for module in match.group("modules").split(",")
-    )
-    invalid_modules = [module for module in modules if module not in ALLOWED_MODULES]
-    if invalid_modules:
-        return [
-            "Invalid PR title module(s): " + ", ".join(sorted(set(invalid_modules)))
-        ]
+    errors = []
+    scope = match.group("scope")
+    if scope not in ALLOWED_SCOPES:
+        errors.append(f"Invalid PR title scope: {scope}")
 
-    part = match.group("part")
-    total = match.group("total")
-    if part and total and total.upper() != "N" and int(part) > int(total):
-        return [f"Invalid PR title progress prefix: part {part} exceeds total {total}"]
+    subject = match.group("subject")
+    if not subject[0].islower():
+        errors.append("PR title subject must start with a lowercase letter")
+    if len(subject) > MAX_SUBJECT_LENGTH:
+        errors.append(
+            f"PR title subject must not exceed {MAX_SUBJECT_LENGTH} characters"
+        )
 
-    return []
+    return errors
 
 
 def validate_metadata(title: str, body: str) -> list[str]:
