@@ -27,6 +27,9 @@ Nightly configuration additionally requires the vLLM and SGLang images plus
 the model and dataset roots.
 
 The current PR smoke and nightly model baselines run on an eight-card runner.
+All HCU CI support and test launchers live under `tests/hcu/`: shared helpers
+are in `tests/hcu/ci/`, PR smoke is in `tests/hcu/pr/`, and nightly launchers
+are in `tests/hcu/nightly/`.
 Nightly case inventories are grouped by accelerator label under
 `tests/hcu/nightly/<accelerator>/ci_cases.yaml`; the current cases are
 registered in `tests/hcu/nightly/bw1000/ci_cases.yaml`. The workflow uses the
@@ -53,9 +56,10 @@ the default branch's trusted `pull_request_target` workflow.
 
 - `PR Test (HCU)` always runs the quality gate. Changes under `hcu_verl/`
   additionally run the fixed-submodule, HCU device, patch, worker, and Ray
-  smoke checks. Other paths do not occupy the HCU runner.
+  smoke checks from `tests/hcu/pr/`. Other paths do not occupy the HCU runner.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
-  run serially on the same eight-card runner. Manual runs can select one case.
+  under `tests/hcu/nightly/bw1000/` run serially on the same eight-card runner.
+  Manual runs can select one case.
 
 Model and dataset downloads are forbidden in both workflows. Nightly tests use
 only the configured local roots and fail with a clear message if an input is

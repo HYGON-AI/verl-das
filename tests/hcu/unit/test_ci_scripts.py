@@ -15,12 +15,12 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_DIR = ROOT / "scripts" / "ci" / "hcu"
+HCU_TEST_DIR = ROOT / "tests" / "hcu"
 COPYRIGHT = "Copyright (c) 2026 Hygon Information Technology Co., Ltd."
 
 
 def read_script(name: str) -> str:
-    return (SCRIPT_DIR / name).read_text(encoding="utf-8")
+    return (HCU_TEST_DIR / name).read_text(encoding="utf-8")
 
 
 def read_grpo_example(name: str) -> str:
@@ -28,8 +28,7 @@ def read_grpo_example(name: str) -> str:
 
 
 def test_all_new_python_and_shell_files_have_hygon_apache_headers():
-    files = list(SCRIPT_DIR.glob("*.py")) + list(SCRIPT_DIR.glob("*.sh"))
-    files += list((ROOT / "tests" / "hcu").rglob("*.py"))
+    files = list(HCU_TEST_DIR.rglob("*.py")) + list(HCU_TEST_DIR.rglob("*.sh"))
 
     assert files
     for path in files:
@@ -39,12 +38,12 @@ def test_all_new_python_and_shell_files_have_hygon_apache_headers():
 
 
 def test_all_shell_scripts_enable_strict_mode():
-    for path in SCRIPT_DIR.glob("*.sh"):
+    for path in HCU_TEST_DIR.rglob("*.sh"):
         assert "set -euo pipefail" in path.read_text(encoding="utf-8"), path
 
 
 def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
-    script = read_script("prepare_workspace.sh")
+    script = read_script("ci/prepare_workspace.sh")
 
     assert "verify_submodules.py" in script
     assert "third_party/verl" in script
@@ -59,7 +58,7 @@ def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
 
 
 def test_cleanup_only_targets_owned_processes():
-    script = read_script("cleanup.sh")
+    script = read_script("ci/cleanup.sh")
 
     assert "ray stop --force" in script
     assert '[[ -f "${run_dir}/ray-owned" ]]' in script
@@ -72,7 +71,7 @@ def test_cleanup_only_targets_owned_processes():
 
 
 def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
-    script = read_script("run_nightly_case.sh")
+    script = read_script("nightly/run_nightly_case.sh")
 
     assert '2>&1 | tee "${log_file}"' in script
     assert "case_status=${PIPESTATUS[0]}" in script
@@ -94,7 +93,7 @@ def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
 
 
 def test_smoke_uses_real_torch_and_ray_gpu_resources():
-    script = read_script("run_hcu_smoke.sh")
+    script = read_script("pr/run_hcu_smoke.sh")
 
     assert 'check_environment.py" runtime --require-gpus 8' in script
     assert "--require-data-roots" not in script
@@ -115,8 +114,8 @@ def test_smoke_uses_real_torch_and_ray_gpu_resources():
 
 
 def test_smoke_and_nightly_default_to_repository_ci_logs():
-    smoke = read_script("run_hcu_smoke.sh")
-    nightly = read_script("run_nightly_case.sh")
+    smoke = read_script("pr/run_hcu_smoke.sh")
+    nightly = read_script("nightly/run_nightly_case.sh")
 
     expected = "${REPO_ROOT}/ci-logs/${VERL_HCU_CI_RUN_ID}"
     assert expected in smoke
@@ -128,8 +127,8 @@ def test_smoke_and_nightly_default_to_repository_ci_logs():
 
 
 def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
-    vllm = read_script("run_vllm_grpo_1step.sh")
-    sglang = read_script("run_sglang_off_policy_1step.sh")
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
 
     assert "third_party/verl/examples/grpo_trainer/run_qwen3_8b_fsdp.sh" in vllm
     assert "Qwen2.5-0.5B-Instruct" in vllm
@@ -152,7 +151,7 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
 
 
 def test_ci_case_inventory_registers_requested_cases():
-    pr_cases = (ROOT / "tests" / "hcu" / "ci_cases.yaml").read_text(
+    pr_cases = (ROOT / "tests" / "hcu" / "pr" / "ci_cases.yaml").read_text(
         encoding="utf-8"
     )
     nightly_cases = (
@@ -209,7 +208,6 @@ def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
         "third_party/*",
         "requirements.txt",
         ".gitmodules",
-        "scripts/ci/hcu/*",
         "tests/hcu/*",
         ".github/workflows/*",
     ):
@@ -217,10 +215,10 @@ def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
 
 
 def test_smoke_and_nightly_apply_patch_before_verl_execution():
-    smoke = read_script("run_hcu_smoke.sh")
-    nightly = read_script("run_nightly_case.sh")
+    smoke = read_script("pr/run_hcu_smoke.sh")
+    nightly = read_script("nightly/run_nightly_case.sh")
 
-    prepare_source = 'source "${SCRIPT_DIR}/prepare_workspace.sh"'
+    prepare_source = 'source "${CI_DIR}/prepare_workspace.sh"'
     assert smoke.index(prepare_source) < smoke.index("import verl")
     assert nightly.index(prepare_source) < nightly.index('bash "${case_script}"')
     assert "HCU_ADAPT" in smoke
@@ -249,12 +247,34 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
 
     assert pr_workflow.count("\n      - bw1000\n") == 1
     assert nightly_workflow.count("\n      - bw1000\n") == 2
+    assert nightly_workflow.count("VERL_HCU_ACCELERATOR: bw1000") == 2
     assert "name: BW1000" not in pr_workflow
     assert "name: BW1000" not in nightly_workflow
     workflow_readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
         encoding="utf-8"
     )
     assert "tests/hcu/nightly/bw1000/ci_cases.yaml" in workflow_readme
+
+
+def test_ci_support_scripts_live_under_hcu_tests():
+    legacy_dir = ROOT / "scripts" / "ci" / "hcu"
+    assert not legacy_dir.exists() or not any(legacy_dir.rglob("*"))
+    expected = (
+        HCU_TEST_DIR / "ci" / "check_environment.py",
+        HCU_TEST_DIR / "ci" / "check_pr_metadata.py",
+        HCU_TEST_DIR / "ci" / "cleanup.sh",
+        HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
+        HCU_TEST_DIR / "ci" / "verify_submodules.py",
+        HCU_TEST_DIR / "pr" / "run_hcu_smoke.sh",
+        HCU_TEST_DIR / "nightly" / "run_nightly_case.sh",
+        HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_1step.sh",
+        HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_1step.sh",
+    )
+    assert all(path.is_file() for path in expected)
+
+    nightly_runner = read_script("nightly/run_nightly_case.sh")
+    assert 'accelerator="${VERL_HCU_ACCELERATOR:-bw1000}"' in nightly_runner
+    assert 'case_dir="${SCRIPT_DIR}/${accelerator}"' in nightly_runner
 
 
 def test_grpo_launcher_preserves_pipeline_failures():
@@ -274,9 +294,9 @@ def test_qwen25_05b_avoids_unstable_hcu_memory_paths():
 
 
 def test_one_step_launcher_preserves_pipeline_failures():
-    script = (
-        ROOT / "examples" / "one_step_off_policy_trainer" / "run.sh"
-    ).read_text(encoding="utf-8")
+    script = (ROOT / "examples" / "one_step_off_policy_trainer" / "run.sh").read_text(
+        encoding="utf-8"
+    )
 
     assert "set -o pipefail" in script
     assert "ray_status=${PIPESTATUS[0]}" in script
@@ -297,8 +317,8 @@ def test_sglang_example_uses_vendored_verl_config():
 
 
 def test_ray_bootstrap_does_not_kill_its_exporting_mpirun_parent():
-    script = (
-        ROOT / "examples" / "scripts" / "pstart_ray.sh"
-    ).read_text(encoding="utf-8")
+    script = (ROOT / "examples" / "scripts" / "pstart_ray.sh").read_text(
+        encoding="utf-8"
+    )
 
     assert "pkill -9 -f VLLM" not in script

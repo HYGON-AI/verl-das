@@ -89,17 +89,17 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: python scripts/ci/hcu/check_pr_metadata.py
+        run: python tests/hcu/ci/check_pr_metadata.py
 
       - name: Run Ruff
         run: |
           # Existing adaptation imports intentionally trigger patch side effects.
           ruff check hcu_verl --ignore F401 --output-format=github
-          ruff check scripts/ci/hcu tests/hcu --output-format=github
-          ruff format --check scripts/ci/hcu tests/hcu
+          ruff check tests/hcu --output-format=github
+          ruff format --check tests/hcu
 
       - name: Compile Python sources
-        run: python -m compileall -q hcu_verl scripts/ci/hcu tests/hcu
+        run: python -m compileall -q hcu_verl tests/hcu
 
       - name: Check license headers
         shell: bash
@@ -107,7 +107,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          roots = (Path("hcu_verl"), Path("scripts/ci/hcu"), Path("tests/hcu"))
+          roots = (Path("hcu_verl"), Path("tests/hcu"))
           missing = []
           for root in roots:
               for path in root.rglob("*"):
@@ -123,7 +123,7 @@ jobs:
       - name: Check shell syntax
         shell: bash
         run: |
-          find scripts/ci/hcu tests/hcu -type f -name '*.sh' -print0 \
+          find tests/hcu -type f -name '*.sh' -print0 \
             | xargs -0 -r -n1 bash -n
 
       - name: Validate workflow YAML
@@ -195,7 +195,7 @@ jobs:
           submodules: false
 
       - name: Validate repository variables
-        run: python scripts/ci/hcu/check_environment.py config --profile pr
+        run: python tests/hcu/ci/check_environment.py config --profile pr
 
   hcu-smoke:
     name: HCU smoke
@@ -240,12 +240,12 @@ jobs:
 
       - name: Run HCU smoke
         shell: bash
-        run: bash scripts/ci/hcu/run_hcu_smoke.sh
+        run: bash tests/hcu/pr/run_hcu_smoke.sh
 
       - name: Cleanup
         if: always()
         shell: bash
-        run: bash scripts/ci/hcu/cleanup.sh
+        run: bash tests/hcu/ci/cleanup.sh
 
       - name: Upload smoke logs
         if: always()

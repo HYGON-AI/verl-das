@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-MODULE_PATH = ROOT / "scripts" / "ci" / "hcu" / "check_pr_metadata.py"
+MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_pr_metadata.py"
 OFFICIAL_MODULES = {
     "fsdp",
     "megatron",

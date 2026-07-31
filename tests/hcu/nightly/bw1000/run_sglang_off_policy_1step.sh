@@ -16,18 +16,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-BASELINE="${REPO_ROOT}/third_party/verl/examples/grpo_trainer/run_qwen3_8b_fsdp.sh"
-MODEL_PATH="${VERL_HCU_MODEL_ROOT:?VERL_HCU_MODEL_ROOT is required}/Qwen2.5-0.5B-Instruct"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+BASELINE="${REPO_ROOT}/third_party/verl/verl/experimental/one_step_off_policy/shell/grpo_0.6b_gsm8k_fsdp2_sglang_2_6.sh"
+MODEL_PATH="${VERL_HCU_MODEL_ROOT:?VERL_HCU_MODEL_ROOT is required}/Qwen3-0.6B"
 if [[ ! -e "${MODEL_PATH}" ]]; then
-    MODEL_PATH="${VERL_HCU_MODEL_ROOT}/qwen2.5/Qwen2.5-0.5B-Instruct"
+    MODEL_PATH="${VERL_HCU_MODEL_ROOT}/qwen3/Qwen3-0.6B"
 fi
 TRAIN_FILE="${VERL_HCU_DATA_ROOT:?VERL_HCU_DATA_ROOT is required}/gsm8k/train.parquet"
 TEST_FILE="${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
 
 for required_path in "${BASELINE}" "${MODEL_PATH}" "${TRAIN_FILE}" "${TEST_FILE}"; do
     if [[ ! -e "${required_path}" ]]; then
-        echo "ERROR: required vLLM one-step input is missing: ${required_path}" >&2
+        echo "ERROR: required SGLang one-step input is missing: ${required_path}" >&2
         exit 1
     fi
 done
@@ -37,33 +37,29 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 export WANDB_MODE=disabled
 export TOKENIZERS_PARALLELISM=false
-export DEVICE=gpu
-export INFER_BACKEND=vllm
 export MODEL_PATH
+export TRAIN_FILE
+export TEST_FILE
 export NNODES=1
 export NGPUS_PER_NODE=8
-export TRAIN_BATCH_SIZE=8
-export PPO_MINI_BATCH_SIZE=8
-export MAX_PROMPT_LENGTH=512
-export MAX_RESPONSE_LENGTH=256
-export ROLLOUT_TP=1
-export ROLLOUT_N=2
-export SAVE_FREQ=-1
-export TEST_FREQ=-1
-export TOTAL_EPOCHS=1
-export PROJECT_NAME=verl-hcu-ci
-export EXPERIMENT_NAME=qwen2.5-0.5b-grpo-vllm-1step
+export RAY_DATA_HOME="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}/${VERL_HCU_CI_RUN_ID:-local}"
 
 bash "${BASELINE}" \
-    "data.train_files=${TRAIN_FILE}" \
-    "data.val_files=${TEST_FILE}" \
-    data.train_batch_size=8 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=8 \
+    data.train_batch_size=12 \
+    data.max_prompt_length=512 \
+    data.max_response_length=256 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=12 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.n=2 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     trainer.logger='["console"]' \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
     trainer.total_epochs=1 \
     trainer.total_training_steps=1 \
-    trainer.resume_mode=disable
+    trainer.resume_mode=disable \
+    +actor_rollout_ref.rollout.engine_kwargs.sglang.page_size=64 \
+    +actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend=fa3 \
+    +actor_rollout_ref.rollout.engine_kwargs.sglang.enable_memory_saver=False

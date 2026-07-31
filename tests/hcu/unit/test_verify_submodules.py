@@ -17,7 +17,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 
 ROOT = Path(__file__).resolve().parents[3]
-MODULE_PATH = ROOT / "scripts" / "ci" / "hcu" / "verify_submodules.py"
+MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "verify_submodules.py"
 EXPECTED = {
     "third_party/verl": "7aed6b230776f963fa09509c10d9c3a767d1102c",
     "third_party/Megatron-LM": "266f1c97dca477ca8b92c16087506da2000b0b84",

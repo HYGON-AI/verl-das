@@ -22,7 +22,14 @@ fi
 
 case_name="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CI_DIR="${SCRIPT_DIR}/../ci"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+accelerator="${VERL_HCU_ACCELERATOR:-bw1000}"
+if [[ ! "${accelerator}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: unsafe HCU accelerator label: ${accelerator}" >&2
+    exit 2
+fi
+case_dir="${SCRIPT_DIR}/${accelerator}"
 export VERL_HCU_CI_RUN_ID="${VERL_HCU_CI_RUN_ID:-nightly-${case_name}-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$}"
 export VERL_HCU_CI_TMP_ROOT="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}"
 if [[ ! "${VERL_HCU_CI_RUN_ID}" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -42,7 +49,7 @@ log_file="${log_root}/${case_name}.log"
 : > "${log_file}"
 
 cleanup() {
-    bash "${SCRIPT_DIR}/cleanup.sh"
+    bash "${CI_DIR}/cleanup.sh"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -50,10 +57,10 @@ trap 'exit 143' TERM
 
 case "${case_name}" in
     vllm)
-        case_script="${SCRIPT_DIR}/run_vllm_grpo_1step.sh"
+        case_script="${case_dir}/run_vllm_grpo_1step.sh"
         ;;
     sglang)
-        case_script="${SCRIPT_DIR}/run_sglang_off_policy_1step.sh"
+        case_script="${case_dir}/run_sglang_off_policy_1step.sh"
         ;;
     *)
         echo "ERROR: unsupported nightly HCU case '${case_name}'; expected vllm or sglang" >&2
@@ -66,11 +73,11 @@ set +e
     set -euo pipefail
 
     # shellcheck disable=SC1091
-    source "${SCRIPT_DIR}/prepare_workspace.sh"
+    source "${CI_DIR}/prepare_workspace.sh"
     echo "main_sha=$(git -C "${REPO_ROOT}" rev-parse HEAD)"
     git -C "${REPO_ROOT}" submodule status
     echo "ci_image=${VERL_HCU_CI_IMAGE:-unknown}"
-    python3 "${SCRIPT_DIR}/check_environment.py" runtime --require-data-roots --require-gpus 8
+    python3 "${CI_DIR}/check_environment.py" runtime --require-data-roots --require-gpus 8
     python3 - <<'PY'
 import importlib.metadata
 import sys

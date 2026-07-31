@@ -1,4 +1,4 @@
 pr_smoke:
-  script: scripts/ci/hcu/run_hcu_smoke.sh
+  script: tests/hcu/pr/run_hcu_smoke.sh
   required_gpus: 8
   timeout_minutes: 20

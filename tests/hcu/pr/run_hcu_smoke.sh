@@ -16,6 +16,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CI_DIR="${SCRIPT_DIR}/../ci"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 export VERL_HCU_CI_RUN_ID="${VERL_HCU_CI_RUN_ID:-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$}"
 export VERL_HCU_CI_TMP_ROOT="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}"
@@ -37,18 +38,18 @@ mkdir -p "${run_dir}" "${log_root}"
 exec > >(tee -a "${environment_log}") 2>&1
 
 cleanup() {
-    bash "${SCRIPT_DIR}/cleanup.sh"
+    bash "${CI_DIR}/cleanup.sh"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/prepare_workspace.sh"
+source "${CI_DIR}/prepare_workspace.sh"
 echo "main_sha=$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 git -C "${REPO_ROOT}" submodule status
 echo "ci_image=${VERL_HCU_CI_IMAGE:-unknown}"
-python3 "${SCRIPT_DIR}/check_environment.py" runtime --require-gpus 8
+python3 "${CI_DIR}/check_environment.py" runtime --require-gpus 8
 
 if command -v rocminfo >/dev/null 2>&1; then
     rocminfo | sed -n '1,80p'

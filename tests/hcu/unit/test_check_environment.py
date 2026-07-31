@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-MODULE_PATH = ROOT / "scripts" / "ci" / "hcu" / "check_environment.py"
+MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_environment.py"
 CONFIG_ENV_VARS = (
     "VERL_HCU_CI_RUNNER_LABEL",
     "VERL_HCU_PR_IMAGE",
