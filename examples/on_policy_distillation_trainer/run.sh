@@ -27,8 +27,13 @@ QWEN3_MODELS=(
     qwen3_vl_8b_mopd_veomni_vllm
 )
 
+QWEN3_5_MODELS=(
+    qwen3_5_4b_fsdp2_vllm
+)
+
 SUPPORTED_MODELS=(
     "${QWEN3_MODELS[@]}"
+    "${QWEN3_5_MODELS[@]}"
 )
 
 env_args=(
