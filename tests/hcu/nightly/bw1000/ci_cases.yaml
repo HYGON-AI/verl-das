@@ -1,0 +1,9 @@
+nightly_vllm:
+  script: tests/hcu/nightly/run_nightly_case.sh vllm
+  required_gpus: 8
+  timeout_minutes: 120
+
+nightly_sglang:
+  script: tests/hcu/nightly/run_nightly_case.sh sglang
+  required_gpus: 8
+  timeout_minutes: 120
