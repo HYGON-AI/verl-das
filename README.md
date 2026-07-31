@@ -33,6 +33,7 @@ verl-das：基于HCU生态的强化学习训练套件，旨在为HCU生态合作
 |one_step_off_policy   | Qwen3-0.6B            | ✓      | ✓        | FSDP2           |
 |on_policy_distillation| Qwen3-8B              | ✓      |          | FSDP, Megatron  |
 |on_policy_distillation| Qwen3-VL-8B           | ✓      |          | FSDP            |
+|on_policy_distillation| Qwen3.5-4B            | ✓      |          | FSDP2           |
 |multi_on_policy_distillation| Qwen3-VL-8B     | ✓      |          | FSDP, VeOmni    |
 
 ## License
