@@ -115,8 +115,8 @@ if ! grep -Fq "[HCU_ADAPT] Patch has been applied in worker" "${log_file}"; then
         tee -a "${log_file}" >&2
     exit 1
 fi
-if ! grep -Fq "step:1" "${log_file}"; then
-    echo "ERROR: ${case_name} log is missing the console logger step:1 marker" |
+if ! grep -Fq "step:5" "${log_file}"; then
+    echo "ERROR: ${case_name} log is missing the console logger step:5 marker" |
         tee -a "${log_file}" >&2
     exit 1
 fi

@@ -73,7 +73,8 @@ def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
     assert "case_status=${PIPESTATUS[0]}" in script
     assert "exec > >(" not in script
     assert "HCU_ADAPT" in script
-    assert 'grep -Fq "step:1"' in script
+    assert 'grep -Fq "step:5"' in script
+    assert 'grep -Fq "step:1"' not in script
     assert (
         'check_environment.py" runtime --require-data-roots --require-gpus 8' in script
     )
@@ -150,7 +151,11 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
     for script in (vllm, sglang):
         assert "VERL_HCU_MODEL_ROOT" in script
         assert "VERL_HCU_DATA_ROOT" in script
-        assert "trainer.total_training_steps=1" in script
+        assert "export PYTHONWARNINGS=ignore" in script
+        assert "export TRANSFORMERS_VERBOSITY=error" in script
+        assert "trainer.total_training_steps=5" in script
+        assert "trainer.total_training_steps=1" not in script
+        assert "trainer.save_freq=-1" in script
         assert "HF_HUB_OFFLINE=1" in script
         assert "TRANSFORMERS_OFFLINE=1" in script
         assert "hf download" not in script

@@ -37,6 +37,8 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 export WANDB_MODE=disabled
 export TOKENIZERS_PARALLELISM=false
+export PYTHONWARNINGS=ignore
+export TRANSFORMERS_VERBOSITY=error
 export MODEL_PATH
 export TRAIN_FILE
 export TEST_FILE
@@ -59,7 +61,7 @@ bash "${BASELINE}" \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
     trainer.total_epochs=1 \
-    trainer.total_training_steps=1 \
+    trainer.total_training_steps=5 \
     trainer.resume_mode=disable \
     +actor_rollout_ref.rollout.engine_kwargs.sglang.page_size=64 \
     +actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend=fa3 \
