@@ -37,6 +37,8 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 export WANDB_MODE=disabled
 export TOKENIZERS_PARALLELISM=false
+export PYTHONWARNINGS=ignore
+export TRANSFORMERS_VERBOSITY=error
 export DEVICE=gpu
 export INFER_BACKEND=vllm
 export MODEL_PATH
@@ -50,9 +52,9 @@ export ROLLOUT_TP=1
 export ROLLOUT_N=2
 export SAVE_FREQ=-1
 export TEST_FREQ=-1
-export TOTAL_EPOCHS=1
+export TOTAL_EPOCHS=5
 export PROJECT_NAME=verl-hcu-ci
-export EXPERIMENT_NAME=qwen2.5-0.5b-grpo-vllm-1step
+export EXPERIMENT_NAME=qwen2.5-0.5b-grpo-vllm-5step
 
 bash "${BASELINE}" \
     "data.train_files=${TRAIN_FILE}" \
@@ -61,12 +63,13 @@ bash "${BASELINE}" \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     actor_rollout_ref.rollout.n=2 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.free_cache_engine=False \
     +actor_rollout_ref.rollout.enable_sleep_mode=False \
     trainer.logger='["console"]' \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 \
-    trainer.total_training_steps=1 \
+    trainer.total_epochs=5 \
+    trainer.total_training_steps=5 \
     trainer.resume_mode=disable
