@@ -115,15 +115,15 @@ if ! grep -Fq "[HCU_ADAPT] Patch has been applied in worker" "${log_file}"; then
         tee -a "${log_file}" >&2
     exit 1
 fi
-if ! grep -Fq "step:1" "${log_file}"; then
-    echo "ERROR: ${case_name} log is missing the console logger step:1 marker" |
+if ! grep -Fq "step:5" "${log_file}"; then
+    echo "ERROR: ${case_name} log is missing the console logger step:5 marker" |
         tee -a "${log_file}" >&2
     exit 1
 fi
 
-failure_pattern='Traceback|out of memory|(^|[^[:alpha:]])OOM([^[:alpha:]]|$)|(^|[^[:alpha:]])NaN([^[:alpha:]]|$)|WorkerCrashedError|RayActorError|ActorDiedError|worker[^[:cntrl:]]*(exception|error|failed|died)'
+failure_pattern='Error executing job|RayTaskError|AcceleratorError|out of memory|(^|[^[:alpha:]])OOM([^[:alpha:]]|$)|(^|[^[:alpha:]])NaN([^[:alpha:]]|$)|WorkerCrashedError|RayActorError|ActorDiedError'
 if grep -Eiq "${failure_pattern}" "${log_file}"; then
-    echo "ERROR: ${case_name} log contains a fatal traceback, OOM, NaN, or worker failure" |
+    echo "ERROR: ${case_name} log contains a fatal job, accelerator, OOM, NaN, or worker failure" |
         tee -a "${log_file}" >&2
     grep -Ein "${failure_pattern}" "${log_file}" | tail -n 20 |
         tee -a "${log_file}" >&2

@@ -37,6 +37,8 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 export WANDB_MODE=disabled
 export TOKENIZERS_PARALLELISM=false
+export PYTHONWARNINGS=ignore
+export TRANSFORMERS_VERBOSITY=error
 export MODEL_PATH
 export TRAIN_FILE
 export TEST_FILE
@@ -45,6 +47,7 @@ export NGPUS_PER_NODE=8
 export RAY_DATA_HOME="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}/${VERL_HCU_CI_RUN_ID:-local}"
 
 bash "${BASELINE}" \
+    "hydra.searchpath=[file://${REPO_ROOT}/third_party/verl/verl/trainer/config]" \
     data.train_batch_size=12 \
     data.max_prompt_length=512 \
     data.max_response_length=256 \
@@ -57,8 +60,8 @@ bash "${BASELINE}" \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 \
-    trainer.total_training_steps=1 \
+    trainer.total_epochs=5 \
+    trainer.total_training_steps=5 \
     trainer.resume_mode=disable \
     +actor_rollout_ref.rollout.engine_kwargs.sglang.page_size=64 \
     +actor_rollout_ref.rollout.engine_kwargs.sglang.attention_backend=fa3 \

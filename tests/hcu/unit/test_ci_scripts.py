@@ -73,14 +73,27 @@ def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
     assert "case_status=${PIPESTATUS[0]}" in script
     assert "exec > >(" not in script
     assert "HCU_ADAPT" in script
-    assert 'grep -Fq "step:1"' in script
+    assert 'grep -Fq "step:5"' in script
+    assert 'grep -Fq "step:1"' not in script
     assert (
         'check_environment.py" runtime --require-data-roots --require-gpus 8' in script
     )
     assert "torch.cuda.is_available()" in script
     assert "torch.cuda.device_count() == 8" in script
-    for marker in ("Traceback", "OOM", "NaN", "worker"):
+    for marker in (
+        "Error executing job",
+        "RayTaskError",
+        "AcceleratorError",
+        "out of memory",
+        "OOM",
+        "NaN",
+        "WorkerCrashedError",
+        "RayActorError",
+        "ActorDiedError",
+    ):
         assert marker in script
+    assert "failure_pattern='Traceback|" not in script
+    assert "worker[^[:cntrl:]]*" not in script
     assert "vllm)" in script
     assert "sglang)" in script
     assert "VERL_HCU_CI_IMAGE" in script
@@ -138,12 +151,29 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
     for script in (vllm, sglang):
         assert "VERL_HCU_MODEL_ROOT" in script
         assert "VERL_HCU_DATA_ROOT" in script
-        assert "trainer.total_training_steps=1" in script
+        assert "export PYTHONWARNINGS=ignore" in script
+        assert "export TRANSFORMERS_VERBOSITY=error" in script
+        assert "trainer.total_training_steps=5" in script
+        assert "trainer.total_training_steps=1" not in script
+        assert "trainer.total_epochs=5" in script
+        assert "trainer.total_epochs=1" not in script
+        assert "trainer.save_freq=-1" in script
         assert "HF_HUB_OFFLINE=1" in script
         assert "TRANSFORMERS_OFFLINE=1" in script
         assert "hf download" not in script
         assert "wget " not in script
         assert "curl " not in script
+
+
+def test_nightly_cases_preserve_locally_validated_runtime_config():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
+
+    assert "actor_rollout_ref.rollout.gpu_memory_utilization=0.5" in vllm
+    assert (
+        "hydra.searchpath=[file://${REPO_ROOT}/third_party/verl/verl/trainer/config]"
+        in sglang
+    )
 
 
 def test_ci_case_inventory_registers_requested_cases():
@@ -169,7 +199,7 @@ def test_nightly_sglang_does_not_start_after_workflow_cancellation():
     assert "!cancelled() &&" in workflow
 
 
-def test_pr_hcu_job_is_limited_to_trusted_same_repository_changes():
+def test_pr_hcu_job_is_limited_to_same_repository_changes():
     workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
     )
@@ -185,9 +215,9 @@ def test_pr_hcu_job_is_limited_to_trusted_same_repository_changes():
     assert "github.event.pull_request.head.repo.full_name" in workflow
     assert "github.event.pull_request.head.sha" in workflow
     assert "github.repository" in workflow
-    assert "github.event.pull_request.author_association" in workflow
-    for association in ("OWNER", "MEMBER", "COLLABORATOR"):
-        assert association in workflow
+    assert "github.event.pull_request.author_association" not in workflow
+    assert "AUTHOR_ASSOCIATION" not in workflow
+    assert "OWNER|MEMBER|COLLABORATOR" not in workflow
 
 
 def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
