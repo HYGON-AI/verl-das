@@ -146,6 +146,17 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
         assert "curl " not in script
 
 
+def test_nightly_cases_preserve_locally_validated_runtime_config():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
+
+    assert "actor_rollout_ref.rollout.gpu_memory_utilization=0.5" in vllm
+    assert (
+        "hydra.searchpath=[file://${REPO_ROOT}/third_party/verl/verl/trainer/config]"
+        in sglang
+    )
+
+
 def test_ci_case_inventory_registers_requested_cases():
     pr_cases = (ROOT / "tests" / "hcu" / "pr" / "ci_cases.yaml").read_text(
         encoding="utf-8"

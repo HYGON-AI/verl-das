@@ -45,6 +45,7 @@ export NGPUS_PER_NODE=8
 export RAY_DATA_HOME="${VERL_HCU_CI_TMP_ROOT:-${TMPDIR:-/tmp}/verl-hcu-ci}/${VERL_HCU_CI_RUN_ID:-local}"
 
 bash "${BASELINE}" \
+    "hydra.searchpath=[file://${REPO_ROOT}/third_party/verl/verl/trainer/config]" \
     data.train_batch_size=12 \
     data.max_prompt_length=512 \
     data.max_response_length=256 \

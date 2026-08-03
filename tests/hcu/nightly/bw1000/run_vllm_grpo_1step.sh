@@ -61,6 +61,7 @@ bash "${BASELINE}" \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     actor_rollout_ref.rollout.n=2 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.free_cache_engine=False \
     +actor_rollout_ref.rollout.enable_sleep_mode=False \
     trainer.logger='["console"]' \
