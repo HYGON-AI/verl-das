@@ -155,6 +155,8 @@ def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
         assert "export TRANSFORMERS_VERBOSITY=error" in script
         assert "trainer.total_training_steps=5" in script
         assert "trainer.total_training_steps=1" not in script
+        assert "trainer.total_epochs=5" in script
+        assert "trainer.total_epochs=1" not in script
         assert "trainer.save_freq=-1" in script
         assert "HF_HUB_OFFLINE=1" in script
         assert "TRANSFORMERS_OFFLINE=1" in script

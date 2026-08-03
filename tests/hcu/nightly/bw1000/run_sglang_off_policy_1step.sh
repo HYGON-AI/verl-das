@@ -60,7 +60,7 @@ bash "${BASELINE}" \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 \
+    trainer.total_epochs=5 \
     trainer.total_training_steps=5 \
     trainer.resume_mode=disable \
     +actor_rollout_ref.rollout.engine_kwargs.sglang.page_size=64 \

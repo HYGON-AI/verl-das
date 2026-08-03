@@ -52,7 +52,7 @@ export ROLLOUT_TP=1
 export ROLLOUT_N=2
 export SAVE_FREQ=-1
 export TEST_FREQ=-1
-export TOTAL_EPOCHS=1
+export TOTAL_EPOCHS=5
 export PROJECT_NAME=verl-hcu-ci
 export EXPERIMENT_NAME=qwen2.5-0.5b-grpo-vllm-5step
 
@@ -70,6 +70,6 @@ bash "${BASELINE}" \
     trainer.val_before_train=False \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 \
+    trainer.total_epochs=5 \
     trainer.total_training_steps=5 \
     trainer.resume_mode=disable
