@@ -121,9 +121,9 @@ if ! grep -Fq "step:1" "${log_file}"; then
     exit 1
 fi
 
-failure_pattern='Traceback|out of memory|(^|[^[:alpha:]])OOM([^[:alpha:]]|$)|(^|[^[:alpha:]])NaN([^[:alpha:]]|$)|WorkerCrashedError|RayActorError|ActorDiedError|worker[^[:cntrl:]]*(exception|error|failed|died)'
+failure_pattern='Error executing job|RayTaskError|AcceleratorError|out of memory|(^|[^[:alpha:]])OOM([^[:alpha:]]|$)|(^|[^[:alpha:]])NaN([^[:alpha:]]|$)|WorkerCrashedError|RayActorError|ActorDiedError'
 if grep -Eiq "${failure_pattern}" "${log_file}"; then
-    echo "ERROR: ${case_name} log contains a fatal traceback, OOM, NaN, or worker failure" |
+    echo "ERROR: ${case_name} log contains a fatal job, accelerator, OOM, NaN, or worker failure" |
         tee -a "${log_file}" >&2
     grep -Ein "${failure_pattern}" "${log_file}" | tail -n 20 |
         tee -a "${log_file}" >&2

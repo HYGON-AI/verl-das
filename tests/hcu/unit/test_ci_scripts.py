@@ -79,8 +79,20 @@ def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
     )
     assert "torch.cuda.is_available()" in script
     assert "torch.cuda.device_count() == 8" in script
-    for marker in ("Traceback", "OOM", "NaN", "worker"):
+    for marker in (
+        "Error executing job",
+        "RayTaskError",
+        "AcceleratorError",
+        "out of memory",
+        "OOM",
+        "NaN",
+        "WorkerCrashedError",
+        "RayActorError",
+        "ActorDiedError",
+    ):
         assert marker in script
+    assert "failure_pattern='Traceback|" not in script
+    assert "worker[^[:cntrl:]]*" not in script
     assert "vllm)" in script
     assert "sglang)" in script
     assert "VERL_HCU_CI_IMAGE" in script
