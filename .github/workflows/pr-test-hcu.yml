@@ -147,13 +147,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Authorize trusted same-repository PR
+      - name: Authorize same-repository PR
         if: github.event_name == 'pull_request_target'
         shell: bash
         env:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_REPOSITORY: ${{ github.repository }}
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
         run: |
           set -euo pipefail
 
@@ -162,13 +161,7 @@ jobs:
             exit 1
           fi
 
-          case "${AUTHOR_ASSOCIATION}" in
-            OWNER|MEMBER|COLLABORATOR) ;;
-            *)
-              echo "HCU execution is not authorized for ${AUTHOR_ASSOCIATION} PRs." >&2
-              exit 1
-              ;;
-          esac
+          echo "Same-repository HCU execution authorized."
 
       - name: Authorize manual dispatch
         if: github.event_name == 'workflow_dispatch'

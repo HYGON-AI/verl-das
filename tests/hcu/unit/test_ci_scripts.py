@@ -199,7 +199,7 @@ def test_nightly_sglang_does_not_start_after_workflow_cancellation():
     assert "!cancelled() &&" in workflow
 
 
-def test_pr_hcu_job_is_limited_to_trusted_same_repository_changes():
+def test_pr_hcu_job_is_limited_to_same_repository_changes():
     workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
     )
@@ -215,9 +215,9 @@ def test_pr_hcu_job_is_limited_to_trusted_same_repository_changes():
     assert "github.event.pull_request.head.repo.full_name" in workflow
     assert "github.event.pull_request.head.sha" in workflow
     assert "github.repository" in workflow
-    assert "github.event.pull_request.author_association" in workflow
-    for association in ("OWNER", "MEMBER", "COLLABORATOR"):
-        assert association in workflow
+    assert "github.event.pull_request.author_association" not in workflow
+    assert "AUTHOR_ASSOCIATION" not in workflow
+    assert "OWNER|MEMBER|COLLABORATOR" not in workflow
 
 
 def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
