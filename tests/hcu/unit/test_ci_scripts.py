@@ -179,7 +179,7 @@ def test_nightly_cases_match_repository_example_parameters():
         "actor_rollout_ref.actor.fsdp_config.optimizer_offload=True",
         "actor_rollout_ref.rollout.name=vllm",
         "actor_rollout_ref.rollout.n=5",
-        "actor_rollout_ref.rollout.gpu_memory_utilization=0.2",
+        "actor_rollout_ref.rollout.gpu_memory_utilization=0.5",
         "trainer.total_epochs=15",
     )
     sglang_parameters = (
@@ -202,14 +202,14 @@ def test_nightly_cases_match_repository_example_parameters():
         assert parameter in sglang
 
 
-def test_vllm_case_avoids_unsupported_hcu_sleep_allocator():
+def test_vllm_case_uses_hcu_runtime_for_example_sleep_mode():
     vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
 
-    assert "VLLM_CUDART_SO_PATH" not in vllm
-    assert "actor_rollout_ref.rollout.free_cache_engine=False" in vllm
-    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" in vllm
-    assert "actor_rollout_ref.rollout.free_cache_engine=True" not in vllm
-    assert "+actor_rollout_ref.rollout.enable_sleep_mode=True" not in vllm
+    assert "VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=True" in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=True" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=False" not in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" not in vllm
 
 
 def test_ci_case_inventory_registers_requested_cases():
