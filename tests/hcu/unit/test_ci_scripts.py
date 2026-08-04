@@ -362,3 +362,22 @@ def test_nightly_cases_do_not_modify_repository_examples():
             text = path.read_text(encoding="utf-8")
             assert shell_examples_ref not in text, path
             assert python_examples_ref not in text, path
+
+
+def test_nightly_cases_expand_read_only_fixture_data_for_example_batches():
+    helper = HCU_TEST_DIR / "nightly" / "prepare_gsm8k_data.py"
+    assert helper.is_file()
+
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_5step.sh")
+    for script in (vllm, sglang):
+        assert 'SOURCE_TRAIN_FILE="${VERL_HCU_DATA_ROOT' in script
+        assert 'SOURCE_TEST_FILE="${VERL_HCU_DATA_ROOT' in script
+        assert 'data_dir="${run_dir}/data"' in script
+        assert '"${REPO_ROOT}/tests/hcu/nightly/prepare_gsm8k_data.py"' in script
+        assert '--output-dir "${data_dir}"' in script
+        assert 'TRAIN_FILE="${data_dir}/train.parquet"' in script
+        assert 'TEST_FILE="${data_dir}/test.parquet"' in script
+
+    assert "--min-train-rows 1024" in vllm
+    assert "--min-train-rows 3456" in sglang

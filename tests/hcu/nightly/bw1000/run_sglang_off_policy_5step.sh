@@ -22,10 +22,10 @@ MODEL_PATH="${VERL_HCU_MODEL_ROOT:?VERL_HCU_MODEL_ROOT is required}/Qwen3-0.6B"
 if [[ ! -e "${MODEL_PATH}" ]]; then
     MODEL_PATH="${VERL_HCU_MODEL_ROOT}/qwen3/Qwen3-0.6B"
 fi
-TRAIN_FILE="${VERL_HCU_DATA_ROOT:?VERL_HCU_DATA_ROOT is required}/gsm8k/train.parquet"
-TEST_FILE="${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
+SOURCE_TRAIN_FILE="${VERL_HCU_DATA_ROOT:?VERL_HCU_DATA_ROOT is required}/gsm8k/train.parquet"
+SOURCE_TEST_FILE="${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
 
-for required_path in "${MODEL_PATH}" "${TRAIN_FILE}" "${TEST_FILE}"; do
+for required_path in "${MODEL_PATH}" "${SOURCE_TRAIN_FILE}" "${SOURCE_TEST_FILE}"; do
     if [[ ! -e "${required_path}" ]]; then
         echo "ERROR: required SGLang 5-step input is missing: ${required_path}" >&2
         exit 1
@@ -42,6 +42,9 @@ fi
 export VERL_HCU_CI_TMP_ROOT
 
 run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
+data_dir="${run_dir}/data"
+TRAIN_FILE="${data_dir}/train.parquet"
+TEST_FILE="${data_dir}/test.parquet"
 log_root="${VERL_HCU_CI_LOG_DIR:-${REPO_ROOT}/ci-logs/${VERL_HCU_CI_RUN_ID}}"
 log_file="${log_root}/sglang.log"
 mkdir -p "${run_dir}/pids" "${log_root}"
@@ -60,6 +63,12 @@ set +e
 
     # shellcheck disable=SC1091
     source "${CI_DIR}/prepare_workspace.sh"
+    python3 "${REPO_ROOT}/tests/hcu/nightly/prepare_gsm8k_data.py" \
+        --train-input "${SOURCE_TRAIN_FILE}" \
+        --test-input "${SOURCE_TEST_FILE}" \
+        --output-dir "${data_dir}" \
+        --min-train-rows 3456 \
+        --min-test-rows 8
     echo "main_sha=$(git -C "${REPO_ROOT}" rev-parse HEAD)"
     git -C "${REPO_ROOT}" submodule status
     echo "ci_image=${VERL_HCU_CI_IMAGE:-unknown}"
