@@ -202,13 +202,14 @@ def test_nightly_cases_match_repository_example_parameters():
         assert parameter in sglang
 
 
-def test_vllm_case_disables_cuda_only_memory_allocator_paths_on_hcu():
+def test_vllm_case_uses_hcu_runtime_for_example_sleep_mode():
     vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
 
-    assert "actor_rollout_ref.rollout.free_cache_engine=False" in vllm
-    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" in vllm
-    assert "actor_rollout_ref.rollout.free_cache_engine=True" not in vllm
-    assert "+actor_rollout_ref.rollout.enable_sleep_mode=True" not in vllm
+    assert "VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=True" in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=True" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=False" not in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" not in vllm
 
 
 def test_ci_case_inventory_registers_requested_cases():
