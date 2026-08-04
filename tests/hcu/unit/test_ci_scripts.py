@@ -120,7 +120,7 @@ def test_smoke_uses_real_torch_and_ray_gpu_resources():
     assert "get_accelerator_ids" in script
     assert "len(set(assignments)) == 8" in script
     assert "torch.cuda.device_count() >= 1" in script
-    assert "verl.utils.device.get_visible_devices_keyword" in script
+    assert "verl.utils.device.get_visible_devices_keyword" not in script
     assert "FileSystemWriterAsync.preload_tensors" in script
     assert "actual is expected" in script
 
@@ -200,6 +200,15 @@ def test_nightly_cases_match_repository_example_parameters():
         assert parameter in vllm
     for parameter in sglang_parameters:
         assert parameter in sglang
+
+
+def test_vllm_case_disables_cuda_only_memory_allocator_paths_on_hcu():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+
+    assert "actor_rollout_ref.rollout.free_cache_engine=False" in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=True" not in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=True" not in vllm
 
 
 def test_ci_case_inventory_registers_requested_cases():

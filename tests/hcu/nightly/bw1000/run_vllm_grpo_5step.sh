@@ -133,8 +133,8 @@ PY
         actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=10 \
         actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
         actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
-        actor_rollout_ref.rollout.free_cache_engine=True \
-        +actor_rollout_ref.rollout.enable_sleep_mode=True \
+        actor_rollout_ref.rollout.free_cache_engine=False \
+        +actor_rollout_ref.rollout.enable_sleep_mode=False \
         algorithm.adv_estimator=grpo \
         algorithm.kl_ctrl.kl_coef=0.0001 \
         trainer.critic_warmup=0 \
