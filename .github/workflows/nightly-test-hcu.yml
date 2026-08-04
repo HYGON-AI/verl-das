@@ -44,7 +44,7 @@ jobs:
         run: python tests/hcu/ci/check_environment.py config --profile nightly
 
   nightly-vllm:
-    name: Qwen2.5-0.5B GRPO vLLM
+    name: Qwen2.5-0.5B GRPO vLLM (5-step)
     needs:
       - validate-config
     if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
@@ -70,7 +70,6 @@ jobs:
         - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
         - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
     env:
-      VERL_HCU_ACCELERATOR: bw1000
       VERL_HCU_CI_RUN_ID: nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
@@ -84,7 +83,7 @@ jobs:
 
       - name: Run vLLM nightly case
         shell: bash
-        run: bash tests/hcu/nightly/run_nightly_case.sh vllm
+        run: bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh
 
       - name: Cleanup
         if: always()
@@ -101,7 +100,7 @@ jobs:
           retention-days: 14
 
   nightly-sglang:
-    name: Qwen3-0.6B one-step off-policy SGLang
+    name: Qwen3-0.6B SGLang off-policy (5-step)
     needs:
       - validate-config
       - nightly-vllm
@@ -132,7 +131,6 @@ jobs:
         - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
         - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
     env:
-      VERL_HCU_ACCELERATOR: bw1000
       VERL_HCU_CI_RUN_ID: nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
@@ -146,7 +144,7 @@ jobs:
 
       - name: Run SGLang nightly case
         shell: bash
-        run: bash tests/hcu/nightly/run_nightly_case.sh sglang
+        run: bash tests/hcu/nightly/bw1000/run_sglang_off_policy_5step.sh
 
       - name: Cleanup
         if: always()
