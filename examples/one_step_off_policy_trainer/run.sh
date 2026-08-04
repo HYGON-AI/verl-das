@@ -8,7 +8,7 @@ done
 
 CURRENT_DIR=$( cd "$( dirname "$0" )" && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
-SAVE_CKPT_PATH=${VERL_PATH}/examples/grpo_trainer
+SAVE_CKPT_PATH=${VERL_PATH}/examples/one_step_off_policy_trainer
 LOG_PATH=${model_name}-`date +%F-%H%M`.log
 export PYTHONWARNINGS=ignore
 export TRANSFORMERS_VERBOSITY=error
