@@ -102,14 +102,10 @@ PY
     export TOKENIZERS_PARALLELISM=false
     export PYTHONWARNINGS=ignore
     export TRANSFORMERS_VERBOSITY=error
-    export VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so
     export RAY_DATA_HOME="${run_dir}/ray-data"
 
-    if [[ ! -f "${VLLM_CUDART_SO_PATH}" ]]; then
-        echo "ERROR: HCU vLLM runtime library is missing: ${VLLM_CUDART_SO_PATH}" >&2
-        exit 1
-    fi
-
+    # HCU vLLM sleep allocation is unavailable in this image, so reserve
+    # rollout memory explicitly while retaining the example training setup.
     python3 -m verl.trainer.main_ppo \
         --config-path=config \
         --config-name=ppo_trainer \
@@ -138,9 +134,9 @@ PY
         actor_rollout_ref.rollout.n=5 \
         actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=10 \
         actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
-        actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
-        actor_rollout_ref.rollout.free_cache_engine=True \
-        +actor_rollout_ref.rollout.enable_sleep_mode=True \
+        actor_rollout_ref.rollout.gpu_memory_utilization=0.2 \
+        actor_rollout_ref.rollout.free_cache_engine=False \
+        +actor_rollout_ref.rollout.enable_sleep_mode=False \
         algorithm.adv_estimator=grpo \
         algorithm.kl_ctrl.kl_coef=0.0001 \
         trainer.critic_warmup=0 \
