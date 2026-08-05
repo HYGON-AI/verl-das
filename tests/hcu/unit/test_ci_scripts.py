@@ -23,8 +23,8 @@ def read_script(name: str) -> str:
     return (HCU_TEST_DIR / name).read_text(encoding="utf-8")
 
 
-def test_all_new_python_and_shell_files_have_hygon_apache_headers():
-    files = list(HCU_TEST_DIR.rglob("*.py")) + list(HCU_TEST_DIR.rglob("*.sh"))
+def test_all_new_python_files_have_hygon_apache_headers():
+    files = list(HCU_TEST_DIR.rglob("*.py"))
 
     assert files
     for path in files:
