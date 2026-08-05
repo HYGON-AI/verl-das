@@ -28,6 +28,12 @@ env:
   VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
   VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
+  VERL_HCU_CI_TMP_ROOT: /tmp/verl-hcu-ci
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  HF_DATASETS_OFFLINE: "1"
+  WANDB_MODE: disabled
+  TOKENIZERS_PARALLELISM: "false"
 
 jobs:
   validate-config:
@@ -44,7 +50,7 @@ jobs:
         run: python tests/hcu/ci/check_environment.py config --profile nightly
 
   nightly-vllm:
-    name: Qwen2.5-0.5B GRPO vLLM
+    name: Qwen2.5-0.5B GRPO vLLM (5-step)
     needs:
       - validate-config
     if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
@@ -68,9 +74,8 @@ jobs:
       volumes:
         - /opt/hyhal:/opt/hyhal:ro
         - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
-        - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
+        - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
     env:
-      VERL_HCU_ACCELERATOR: bw1000
       VERL_HCU_CI_RUN_ID: nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
@@ -84,7 +89,46 @@ jobs:
 
       - name: Run vLLM nightly case
         shell: bash
-        run: bash tests/hcu/nightly/run_nightly_case.sh vllm
+        run: |
+          set -euo pipefail
+
+          run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
+          log_file="${VERL_HCU_CI_LOG_DIR}/vllm.log"
+          mkdir -p "${run_dir}/pids" "${VERL_HCU_CI_LOG_DIR}"
+          touch "${run_dir}/ray-owned"
+
+          source tests/hcu/ci/prepare_workspace.sh
+          python3 tests/hcu/ci/check_environment.py \
+            runtime --require-data-roots --require-gpus 8
+          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
+          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
+          test -d "${VERL_HCU_MODEL_ROOT}/qwen2.5/Qwen2.5-0.5B-Instruct"
+          test -f /opt/dtk/hip/lib/libgalaxyhip.so
+
+          echo "main_sha=$(git rev-parse HEAD)"
+          git submodule status
+          echo "ci_image=${VERL_HCU_CI_IMAGE}"
+          python3 - <<'PY'
+          import importlib.metadata
+          import sys
+
+          import torch
+
+          print(f"python={sys.version.split()[0]}")
+          print(f"torch={torch.__version__}")
+          for distribution in ("ray", "vllm", "transformers"):
+              print(f"{distribution}={importlib.metadata.version(distribution)}")
+          assert torch.cuda.is_available()
+          assert torch.cuda.device_count() == 8
+          PY
+
+          hf_model_path="${VERL_HCU_MODEL_ROOT}/qwen2.5" \
+            bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh \
+            2>&1 | tee "${log_file}"
+          python3 tests/hcu/ci/check_nightly_result.py \
+            --log "${log_file}" \
+            --expected-step 5 \
+            --checkpoint-root "${GITHUB_WORKSPACE}/checkpoints"
 
       - name: Cleanup
         if: always()
@@ -101,7 +145,7 @@ jobs:
           retention-days: 14
 
   nightly-sglang:
-    name: Qwen3-0.6B one-step off-policy SGLang
+    name: Qwen3-0.6B SGLang off-policy (3-step)
     needs:
       - validate-config
       - nightly-vllm
@@ -130,9 +174,8 @@ jobs:
       volumes:
         - /opt/hyhal:/opt/hyhal:ro
         - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
-        - ${{ vars.VERL_HCU_DATA_ROOT }}:${{ vars.VERL_HCU_DATA_ROOT }}:ro
+        - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
     env:
-      VERL_HCU_ACCELERATOR: bw1000
       VERL_HCU_CI_RUN_ID: nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
@@ -146,7 +189,45 @@ jobs:
 
       - name: Run SGLang nightly case
         shell: bash
-        run: bash tests/hcu/nightly/run_nightly_case.sh sglang
+        run: |
+          set -euo pipefail
+
+          run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
+          log_file="${VERL_HCU_CI_LOG_DIR}/sglang.log"
+          mkdir -p "${run_dir}/pids" "${VERL_HCU_CI_LOG_DIR}"
+          touch "${run_dir}/ray-owned"
+
+          source tests/hcu/ci/prepare_workspace.sh
+          python3 tests/hcu/ci/check_environment.py \
+            runtime --require-data-roots --require-gpus 8
+          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
+          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
+          test -d "${VERL_HCU_MODEL_ROOT}/qwen3/Qwen3-0.6B"
+
+          echo "main_sha=$(git rev-parse HEAD)"
+          git submodule status
+          echo "ci_image=${VERL_HCU_CI_IMAGE}"
+          python3 - <<'PY'
+          import importlib.metadata
+          import sys
+
+          import torch
+
+          print(f"python={sys.version.split()[0]}")
+          print(f"torch={torch.__version__}")
+          for distribution in ("ray", "sglang", "transformers"):
+              print(f"{distribution}={importlib.metadata.version(distribution)}")
+          assert torch.cuda.is_available()
+          assert torch.cuda.device_count() == 8
+          PY
+
+          hf_model_path="${VERL_HCU_MODEL_ROOT}/qwen3" \
+            bash tests/hcu/nightly/bw1000/run_sglang_off_policy_3step.sh \
+            2>&1 | tee "${log_file}"
+          python3 tests/hcu/ci/check_nightly_result.py \
+            --log "${log_file}" \
+            --expected-step 3 \
+            --checkpoint-root "${GITHUB_WORKSPACE}/checkpoints"
 
       - name: Cleanup
         if: always()
