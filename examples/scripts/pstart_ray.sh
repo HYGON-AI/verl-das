@@ -5,8 +5,6 @@ HOST_FILE=$2
 PORT=6379
 node_rank=$OMPI_COMM_WORLD_RANK
 
-pkill -9 -f python
-pkill -9 -f VLLM
 ray stop --force || true
 
 # Multi Node
