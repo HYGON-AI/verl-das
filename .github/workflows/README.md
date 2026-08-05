@@ -14,7 +14,7 @@ Configure these variables before enabling the workflows:
 | `VERL_HCU_VLLM_IMAGE` | HCU image used by the vLLM nightly job |
 | `VERL_HCU_SGLANG_IMAGE` | HCU image used by the SGLang nightly job |
 | `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into nightly containers |
-| `VERL_HCU_DATA_ROOT` | Read-only dataset root mounted into nightly containers |
+| `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory |
 
 All image values must use an immutable digest:
 
@@ -25,6 +25,11 @@ registry.example.com/project/image@sha256:<64 hexadecimal characters>
 The PR configuration check requires only the runner label and PR image.
 Nightly configuration additionally requires the vLLM and SGLang images plus
 the model and dataset roots.
+
+For the current BW1000 cases, set `VERL_HCU_DATA_ROOT=/home/github/tly` when
+the complete dataset is stored in `/home/github/tly/gsm8k`. The workflow
+mounts only `${VERL_HCU_DATA_ROOT}/gsm8k` into the container and keeps it
+read-only.
 
 The current PR smoke and nightly model baselines run on an eight-card runner.
 All HCU CI support and test launchers live under `tests/hcu/`: shared helpers

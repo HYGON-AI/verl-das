@@ -19,7 +19,6 @@ ROOT = Path(__file__).resolve().parents[3]
 ADAPTOR = ROOT / "hcu_verl" / "adaptor" / "verl_adaptor.py"
 EXPECTED_PATCH_TARGETS = {
     "verl.trainer.constants_ppo.PPO_RAY_RUNTIME_ENV",
-    "verl.utils.device.get_visible_devices_keyword",
     "verl.utils.flops_counter._DEVICE_FLOPS",
     "verl.utils.megatron_utils.get_model",
     "verl.workers.rollout.vllm_rollout.utils.get_device_uuid",
@@ -30,7 +29,6 @@ EXPECTED_PATCH_TARGETS = {
 }
 EXPECTED_IMPLEMENTATIONS = {
     "hcu_verl/trainer/constants_ppo.py",
-    "hcu_verl/utils/device.py",
     "hcu_verl/utils/flops_counter.py",
     "hcu_verl/utils/megatron_utils.py",
     "hcu_verl/workers/rollout/vllm_rollout/utils.py",

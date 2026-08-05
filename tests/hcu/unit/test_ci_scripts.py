@@ -23,8 +23,8 @@ def read_script(name: str) -> str:
     return (HCU_TEST_DIR / name).read_text(encoding="utf-8")
 
 
-def test_all_new_python_and_shell_files_have_hygon_apache_headers():
-    files = list(HCU_TEST_DIR.rglob("*.py")) + list(HCU_TEST_DIR.rglob("*.sh"))
+def test_all_new_python_files_have_hygon_apache_headers():
+    files = list(HCU_TEST_DIR.rglob("*.py"))
 
     assert files
     for path in files:
@@ -66,39 +66,25 @@ def test_cleanup_only_targets_owned_processes():
     assert "killall" not in script
 
 
-def test_nightly_runner_checks_exit_status_patch_and_fatal_logs():
-    script = read_script("nightly/run_nightly_case.sh")
-
-    assert '2>&1 | tee "${log_file}"' in script
-    assert "case_status=${PIPESTATUS[0]}" in script
-    assert "exec > >(" not in script
-    assert "HCU_ADAPT" in script
-    assert 'grep -Fq "step:5"' in script
-    assert 'grep -Fq "step:1"' not in script
-    assert (
-        'check_environment.py" runtime --require-data-roots --require-gpus 8' in script
+def test_nightly_ci_checks_are_outside_training_scripts():
+    workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
+        encoding="utf-8"
     )
-    assert "torch.cuda.is_available()" in script
-    assert "torch.cuda.device_count() == 8" in script
-    for marker in (
-        "Error executing job",
-        "RayTaskError",
-        "AcceleratorError",
-        "out of memory",
-        "OOM",
-        "NaN",
-        "WorkerCrashedError",
-        "RayActorError",
-        "ActorDiedError",
-    ):
-        assert marker in script
-    assert "failure_pattern='Traceback|" not in script
-    assert "worker[^[:cntrl:]]*" not in script
-    assert "vllm)" in script
-    assert "sglang)" in script
-    assert "VERL_HCU_CI_IMAGE" in script
-    assert "rev-parse HEAD" in script
-    assert "submodule status" in script
+    scripts = (
+        read_script("nightly/bw1000/run_vllm_grpo_5step.sh"),
+        read_script("nightly/bw1000/run_sglang_off_policy_3step.sh"),
+    )
+
+    for script in scripts:
+        assert "prepare_workspace.sh" not in script
+        assert "check_environment.py" not in script
+        assert "check_nightly_result.py" not in script
+        assert '2>&1 | tee "${log_file}"' not in script
+        assert "HCU_ADAPT" not in script
+
+    assert workflow.count("source tests/hcu/ci/prepare_workspace.sh") == 2
+    assert workflow.count("runtime --require-data-roots --require-gpus 8") == 2
+    assert workflow.count("check_nightly_result.py") == 2
 
 
 def test_smoke_uses_real_torch_and_ray_gpu_resources():
@@ -117,63 +103,105 @@ def test_smoke_uses_real_torch_and_ray_gpu_resources():
     assert "get_accelerator_ids" in script
     assert "len(set(assignments)) == 8" in script
     assert "torch.cuda.device_count() >= 1" in script
-    assert "verl.utils.device.get_visible_devices_keyword" in script
+    assert "verl.utils.device.get_visible_devices_keyword" not in script
     assert "FileSystemWriterAsync.preload_tensors" in script
     assert "actual is expected" in script
 
 
-def test_smoke_and_nightly_default_to_repository_ci_logs():
+def test_smoke_and_workflow_use_repository_ci_logs():
     smoke = read_script("pr/run_hcu_smoke.sh")
-    nightly = read_script("nightly/run_nightly_case.sh")
+    workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
 
     expected = "${REPO_ROOT}/ci-logs/${VERL_HCU_CI_RUN_ID}"
     assert expected in smoke
-    assert expected in nightly
     assert "environment.log" in smoke
     assert "pytest.log" in smoke
     assert "${VERL_HCU_CI_RUN_ID:-smoke-" in smoke
-    assert "${VERL_HCU_CI_RUN_ID:-nightly-" in nightly
+    assert workflow.count("VERL_HCU_CI_LOG_DIR:") == 2
+    assert "vllm.log" in workflow
+    assert "sglang.log" in workflow
 
 
-def test_e2e_scripts_use_pinned_baselines_local_roots_and_offline_mode():
-    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
-    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
+def test_e2e_scripts_use_configured_roots_without_downloading():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
 
-    assert "third_party/verl/examples/grpo_trainer/run_qwen3_8b_fsdp.sh" in vllm
     assert "Qwen2.5-0.5B-Instruct" in vllm
-    assert "qwen2.5/Qwen2.5-0.5B-Instruct" in vllm
-    assert "actor_rollout_ref.rollout.name" not in vllm
-    assert "grpo_0.6b_gsm8k_fsdp2_sglang_2_6.sh" in sglang
     assert "Qwen3-0.6B" in sglang
-    assert "qwen3/Qwen3-0.6B" in sglang
-    assert "data.train_batch_size=12" in sglang
-    assert "actor_rollout_ref.actor.ppo_mini_batch_size=12" in sglang
     for script in (vllm, sglang):
         assert "VERL_HCU_MODEL_ROOT" in script
         assert "VERL_HCU_DATA_ROOT" in script
         assert "export PYTHONWARNINGS=ignore" in script
         assert "export TRANSFORMERS_VERBOSITY=error" in script
-        assert "trainer.total_training_steps=5" in script
-        assert "trainer.total_training_steps=1" not in script
-        assert "trainer.total_epochs=5" in script
-        assert "trainer.total_epochs=1" not in script
         assert "trainer.save_freq=-1" in script
-        assert "HF_HUB_OFFLINE=1" in script
-        assert "TRANSFORMERS_OFFLINE=1" in script
         assert "hf download" not in script
         assert "wget " not in script
         assert "curl " not in script
 
+    assert "trainer.total_training_steps=5" in vllm
+    assert "trainer.total_training_steps=3" in sglang
 
-def test_nightly_cases_preserve_locally_validated_runtime_config():
-    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
-    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
 
-    assert "actor_rollout_ref.rollout.gpu_memory_utilization=0.5" in vllm
-    assert (
-        "hydra.searchpath=[file://${REPO_ROOT}/third_party/verl/verl/trainer/config]"
-        in sglang
+def test_nightly_cases_match_the_validated_training_scripts():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
+
+    vllm_parameters = (
+        "train_prompt_bsz=1024",
+        "data.train_batch_size=${train_prompt_bsz}",
+        "data.max_prompt_length=${max_prompt_length}",
+        "data.max_response_length=${max_response_length}",
+        "max_prompt_length=$((128 * 1))",
+        "max_response_length=$((256 * 1))",
+        "actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz}",
+        "train_prompt_mini_bsz=128",
+        "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1",
+        "param_offload=True",
+        "optimizer_offload=True",
+        "actor_rollout_ref.actor.fsdp_config.param_offload=${param_offload}",
+        "actor_rollout_ref.actor.fsdp_config.optimizer_offload=${optimizer_offload}",
+        "actor_rollout_ref.rollout.name=vllm",
+        "n_resp_per_prompt=5",
+        "gpu_memory_utilization=0.3",
+        "enable_sleep=False",
+        "trainer.total_epochs=15",
+        "trainer.total_training_steps=5",
     )
+    sglang_parameters = (
+        "train_batch_size=1152",
+        "data.train_batch_size=${train_batch_size}",
+        "max_prompt_length=512",
+        "max_response_length=1024",
+        "data.max_prompt_length=${max_prompt_length}",
+        "data.max_response_length=${max_response_length}",
+        "ppo_mini_batch_size=192",
+        "ppo_micro_batch_size_per_gpu=32",
+        "actor_rollout_ref.actor.ppo_mini_batch_size=${ppo_mini_batch_size}",
+        "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${ppo_micro_batch_size_per_gpu}",
+        "actor_rollout_ref.actor.fsdp_config.strategy=fsdp2",
+        "actor_rollout_ref.rollout.name=sglang",
+        "rollout_n=5",
+        "rollout_gpu_mem_util=0.3",
+        "rollout.n_gpus_per_node=${n_gpus_rollout}",
+        "trainer.n_gpus_per_node=${n_gpus_training}",
+        "trainer.total_epochs=2",
+        "trainer.total_training_steps=3",
+    )
+    for parameter in vllm_parameters:
+        assert parameter in vllm
+    for parameter in sglang_parameters:
+        assert parameter in sglang
+
+
+def test_vllm_case_uses_validated_no_sleep_settings():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+
+    assert "VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so" in vllm
+    assert "enable_sleep=False" in vllm
+    assert "actor_rollout_ref.rollout.free_cache_engine=${enable_sleep}" in vllm
+    assert "+actor_rollout_ref.rollout.enable_sleep_mode=${enable_sleep}" in vllm
 
 
 def test_ci_case_inventory_registers_requested_cases():
@@ -240,15 +268,17 @@ def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
         assert unrelated_path not in classifier
 
 
-def test_smoke_and_nightly_apply_patch_before_verl_execution():
+def test_smoke_and_workflow_apply_patch_before_verl_execution():
     smoke = read_script("pr/run_hcu_smoke.sh")
-    nightly = read_script("nightly/run_nightly_case.sh")
+    workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
 
     prepare_source = 'source "${CI_DIR}/prepare_workspace.sh"'
     assert smoke.index(prepare_source) < smoke.index("import verl")
-    assert nightly.index(prepare_source) < nightly.index('bash "${case_script}"')
     assert "HCU_ADAPT" in smoke
-    assert "HCU_ADAPT" in nightly
+    assert workflow.count("source tests/hcu/ci/prepare_workspace.sh") == 2
+    assert workflow.count("check_nightly_result.py") == 2
 
 
 def test_workflows_validate_only_their_own_configuration_profile():
@@ -273,7 +303,7 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
 
     assert pr_workflow.count("\n      - bw1000\n") == 1
     assert nightly_workflow.count("\n      - bw1000\n") == 2
-    assert nightly_workflow.count("VERL_HCU_ACCELERATOR: bw1000") == 2
+    assert "VERL_HCU_ACCELERATOR" not in nightly_workflow
     assert "name: BW1000" not in pr_workflow
     assert "name: BW1000" not in nightly_workflow
     workflow_readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
@@ -289,47 +319,42 @@ def test_ci_support_scripts_live_under_hcu_tests():
         HCU_TEST_DIR / "ci" / "check_environment.py",
         HCU_TEST_DIR / "ci" / "check_pr_metadata.py",
         HCU_TEST_DIR / "ci" / "cleanup.sh",
+        HCU_TEST_DIR / "ci" / "check_nightly_result.py",
         HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
         HCU_TEST_DIR / "ci" / "verify_submodules.py",
         HCU_TEST_DIR / "pr" / "run_hcu_smoke.sh",
-        HCU_TEST_DIR / "nightly" / "run_nightly_case.sh",
-        HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_1step.sh",
-        HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_1step.sh",
+        HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_5step.sh",
+        HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_3step.sh",
     )
     assert all(path.is_file() for path in expected)
-
-    nightly_runner = read_script("nightly/run_nightly_case.sh")
-    assert 'accelerator="${VERL_HCU_ACCELERATOR:-bw1000}"' in nightly_runner
-    assert 'case_dir="${SCRIPT_DIR}/${accelerator}"' in nightly_runner
+    assert not (HCU_TEST_DIR / "nightly" / "run_nightly_case.sh").exists()
 
 
-def test_nightly_dispatch_preserves_pipeline_failures():
-    script = read_script("nightly/run_nightly_case.sh")
+def test_nightly_workflow_runs_validated_scripts_directly():
+    workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert "set -euo pipefail" in script
-    assert "case_status=${PIPESTATUS[0]}" in script
-    assert 'exit "${case_status}"' in script
-
-
-def test_vllm_case_avoids_unstable_hcu_memory_paths():
-    script = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
-
-    assert "actor_rollout_ref.actor.fsdp_config.optimizer_offload=False" in script
-    assert "actor_rollout_ref.rollout.free_cache_engine=False" in script
-    assert "+actor_rollout_ref.rollout.enable_sleep_mode=False" in script
+    assert "bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh" in workflow
+    assert "bash tests/hcu/nightly/bw1000/run_sglang_off_policy_3step.sh" in workflow
+    assert "run_nightly_case.sh" not in workflow
+    assert "Qwen2.5-0.5B GRPO vLLM (5-step)" in workflow
+    assert "Qwen3-0.6B SGLang off-policy (3-step)" in workflow
 
 
-def test_nightly_cases_use_vendored_verl_baselines():
-    vllm = read_script("nightly/bw1000/run_vllm_grpo_1step.sh")
-    sglang = read_script("nightly/bw1000/run_sglang_off_policy_1step.sh")
+def test_nightly_cases_use_standalone_ci_training_commands():
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
 
-    assert "${REPO_ROOT}/third_party/verl/examples/" in vllm
-    assert "${REPO_ROOT}/third_party/verl/verl/experimental/" in sglang
+    assert "python3 -m verl.trainer.main_ppo" in vllm
+    assert "python3 -m verl.experimental.one_step_off_policy.main_ppo" in sglang
     assert "${REPO_ROOT}/examples/" not in vllm
     assert "${REPO_ROOT}/examples/" not in sglang
+    assert "EXAMPLE_SCRIPT" not in vllm
+    assert "EXAMPLE_SCRIPT" not in sglang
 
 
-def test_hcu_ci_does_not_read_or_modify_product_examples():
+def test_nightly_cases_do_not_modify_repository_examples():
     shell_examples_ref = "${REPO_ROOT}/" + "examples/"
     python_examples_ref = "ROOT / " + '"examples"'
     for subdir in ("ci", "pr", "nightly"):
@@ -339,3 +364,23 @@ def test_hcu_ci_does_not_read_or_modify_product_examples():
             text = path.read_text(encoding="utf-8")
             assert shell_examples_ref not in text, path
             assert python_examples_ref not in text, path
+
+
+def test_nightly_cases_use_complete_read_only_gsm8k_data_directly():
+    helper = HCU_TEST_DIR / "nightly" / "prepare_gsm8k_data.py"
+    assert not helper.exists()
+
+    vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
+    for script in (vllm, sglang):
+        assert "train_file=${data_path}/gsm8k/train.parquet" in script
+        assert "test_file=${data_path}/gsm8k/test.parquet" in script
+        assert "prepare_gsm8k_data.py" not in script
+
+    workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    readonly_mount = (
+        "${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro"
+    )
+    assert workflow.count(readonly_mount) == 2

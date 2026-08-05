@@ -103,7 +103,6 @@ from hcu_verl.core.dist_checkpointing.strategies.filesystem_async import (
     preload_tensors,
 )
 from hcu_verl.trainer.constants_ppo import PPO_RAY_RUNTIME_ENV
-from hcu_verl.utils.device import get_visible_devices_keyword
 from hcu_verl.utils.flops_counter import _DEVICE_FLOPS
 from hcu_verl.utils.megatron_utils import get_model
 from hcu_verl.workers.rollout.vllm_rollout.utils import get_device_uuid
@@ -111,7 +110,7 @@ from megatron.core.dist_checkpointing.strategies.filesystem_async import (
     FileSystemWriterAsync,
 )
 from verl.trainer import constants_ppo
-from verl.utils import device, flops_counter, megatron_utils
+from verl.utils import flops_counter, megatron_utils
 from verl.workers.rollout.vllm_rollout import utils as vllm_utils
 
 expected_preload = (
@@ -124,11 +123,6 @@ checks = (
         "verl.trainer.constants_ppo.PPO_RAY_RUNTIME_ENV",
         constants_ppo.PPO_RAY_RUNTIME_ENV,
         PPO_RAY_RUNTIME_ENV,
-    ),
-    (
-        "verl.utils.device.get_visible_devices_keyword",
-        device.get_visible_devices_keyword,
-        get_visible_devices_keyword,
     ),
     (
         "verl.utils.flops_counter._DEVICE_FLOPS",
