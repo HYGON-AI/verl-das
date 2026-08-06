@@ -147,6 +147,17 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Restore workspace ownership
+        if: always()
+        shell: bash
+        env:
+          VERL_HCU_CI_RUNNER_UID: ${{ vars.VERL_HCU_CI_RUNNER_UID || '1002' }}
+          VERL_HCU_CI_RUNNER_GID: ${{ vars.VERL_HCU_CI_RUNNER_GID || '1002' }}
+        run: |
+          if [ -e "${GITHUB_WORKSPACE}" ]; then
+            chown -R "${VERL_HCU_CI_RUNNER_UID}:${VERL_HCU_CI_RUNNER_GID}" "${GITHUB_WORKSPACE}"
+          fi
+
   nightly-sglang:
     name: Qwen3-0.6B SGLang off-policy (3-step)
     needs:
@@ -245,6 +256,17 @@ jobs:
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Restore workspace ownership
+        if: always()
+        shell: bash
+        env:
+          VERL_HCU_CI_RUNNER_UID: ${{ vars.VERL_HCU_CI_RUNNER_UID || '1002' }}
+          VERL_HCU_CI_RUNNER_GID: ${{ vars.VERL_HCU_CI_RUNNER_GID || '1002' }}
+        run: |
+          if [ -e "${GITHUB_WORKSPACE}" ]; then
+            chown -R "${VERL_HCU_CI_RUNNER_UID}:${VERL_HCU_CI_RUNNER_GID}" "${GITHUB_WORKSPACE}"
+          fi
 
   finish:
     name: Finish
