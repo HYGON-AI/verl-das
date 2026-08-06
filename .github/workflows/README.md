@@ -47,6 +47,12 @@ configured above. Runtime dependencies belong in the pinned images; the
 workflows do not install the floating dependency from the product
 `requirements.txt`.
 
+Every container test is followed by a host-side ownership restoration job
+before the next test layer starts. It validates that `GITHUB_WORKSPACE` is
+inside the runner work root, derives the runner UID/GID from `RUNNER_TEMP`, and
+uses the already-pinned HCU image to restore only that workspace. Keeping this
+as a separate job makes it run after `actions/checkout` post-job cleanup.
+
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU
 execution is limited to same-repository branches opened by an owner,

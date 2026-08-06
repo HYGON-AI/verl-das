@@ -35,6 +35,8 @@ prepare_hcu_workspace() {
         fi
     done
 
+    git -C "${repo_root}" submodule sync --recursive
+    git -C "${repo_root}" submodule update --init --recursive
     python3 "${script_dir}/verify_submodules.py" --repo-root "${repo_root}"
 
     python_paths=(

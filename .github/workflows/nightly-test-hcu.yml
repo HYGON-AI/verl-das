@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          submodules: recursive
+          submodules: false
           clean: true
 
       - name: Run vLLM nightly case
@@ -149,8 +149,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  restore-after-vllm:
+    name: Restore workspace after nightly vLLM
+    if: always() && needs.nightly-vllm.result != 'skipped'
+    needs:
+      - nightly-vllm
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+    steps:
       - name: Restore runner workspace ownership
-        if: always()
         shell: bash
         run: bash tests/hcu/ci/restore_runner_permissions.sh
 
@@ -159,6 +172,7 @@ jobs:
     needs:
       - validate-config
       - nightly-vllm
+      - restore-after-vllm
     if: >-
       always() &&
       !cancelled() &&
@@ -194,7 +208,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          submodules: recursive
+          submodules: false
           clean: true
 
       - name: Run SGLang nightly case
@@ -253,8 +267,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  restore-after-sglang:
+    name: Restore workspace after nightly SGLang
+    if: always() && needs.nightly-sglang.result != 'skipped'
+    needs:
+      - nightly-sglang
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
+    steps:
       - name: Restore runner workspace ownership
-        if: always()
         shell: bash
         run: bash tests/hcu/ci/restore_runner_permissions.sh
 
@@ -264,7 +291,9 @@ jobs:
     needs:
       - validate-config
       - nightly-vllm
+      - restore-after-vllm
       - nightly-sglang
+      - restore-after-sglang
     runs-on:
       - self-hosted
       - bw1000
@@ -278,7 +307,9 @@ jobs:
           SELECTED_CASE: ${{ inputs.test_case || 'all' }}
           CONFIG_RESULT: ${{ needs.validate-config.result }}
           VLLM_RESULT: ${{ needs.nightly-vllm.result }}
+          RESTORE_VLLM_RESULT: ${{ needs.restore-after-vllm.result }}
           SGLANG_RESULT: ${{ needs.nightly-sglang.result }}
+          RESTORE_SGLANG_RESULT: ${{ needs.restore-after-sglang.result }}
         run: |
           set -euo pipefail
 
@@ -286,13 +317,19 @@ jobs:
 
           if [[ "${EVENT_NAME}" == "schedule" || "${SELECTED_CASE}" == "all" ]]; then
             [[ "${VLLM_RESULT}" == "success" ]]
+            [[ "${RESTORE_VLLM_RESULT}" == "success" ]]
             [[ "${SGLANG_RESULT}" == "success" ]]
+            [[ "${RESTORE_SGLANG_RESULT}" == "success" ]]
           elif [[ "${SELECTED_CASE}" == "vllm" ]]; then
             [[ "${VLLM_RESULT}" == "success" ]]
+            [[ "${RESTORE_VLLM_RESULT}" == "success" ]]
             [[ "${SGLANG_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_SGLANG_RESULT}" == "skipped" ]]
           elif [[ "${SELECTED_CASE}" == "sglang" ]]; then
             [[ "${VLLM_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_VLLM_RESULT}" == "skipped" ]]
             [[ "${SGLANG_RESULT}" == "success" ]]
+            [[ "${RESTORE_SGLANG_RESULT}" == "success" ]]
           else
             echo "Unsupported test case: ${SELECTED_CASE}" >&2
             exit 1
@@ -304,5 +341,7 @@ jobs:
             echo "- selected case: ${SELECTED_CASE}"
             echo "- config validation: ${CONFIG_RESULT}"
             echo "- vLLM: ${VLLM_RESULT}"
+            echo "- restore after vLLM: ${RESTORE_VLLM_RESULT}"
             echo "- SGLang: ${SGLANG_RESULT}"
+            echo "- restore after SGLang: ${RESTORE_SGLANG_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"

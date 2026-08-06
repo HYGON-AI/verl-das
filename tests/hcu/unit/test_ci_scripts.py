@@ -45,6 +45,8 @@ def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
     assert "third_party/verl" in script
     assert "third_party/Megatron-LM" in script
     assert "third_party/VeOmni" in script
+    assert 'git -C "${repo_root}" submodule sync --recursive' in script
+    assert 'git -C "${repo_root}" submodule update --init --recursive' in script
     assert 'patch_source="${repo_root}/hcu_verl/patch_init.py"' in script
     assert 'patch_target="${repo_root}/third_party/verl/verl/__init__.py"' in script
     assert 'cp -- "${patch_source}" "${patch_tmp}"' in script
@@ -75,7 +77,9 @@ def test_runner_permission_restore_is_scoped_to_the_actions_workspace():
     assert "realpath -m" in script
     assert 'case "${workspace}"' in script
     assert 'stat -c \'%u:%g\'' in script
-    assert 'chown -R -- "${owner}" "${workspace}"' in script
+    assert "docker run --rm" in script
+    assert '--volume "${workspace}:/workspace"' in script
+    assert 'chown -R -- "${owner}" /workspace' in script
 
     pr_workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
@@ -339,8 +343,8 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
         ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
     ).read_text(encoding="utf-8")
 
-    assert pr_workflow.count("\n      - bw1000\n") == 7
-    assert nightly_workflow.count("\n      - bw1000\n") == 4
+    assert pr_workflow.count("\n      - bw1000\n") == 10
+    assert nightly_workflow.count("\n      - bw1000\n") == 6
     assert "VERL_HCU_ACCELERATOR" not in nightly_workflow
     assert "name: BW1000" not in pr_workflow
     assert "name: BW1000" not in nightly_workflow
@@ -467,3 +471,17 @@ def test_pr_finish_requires_all_three_test_layers():
     assert "E2E_RESULT" in workflow
     assert '[[ "${UPSTREAM_RESULT}" == "success" ]]' in workflow
     assert '[[ "${E2E_RESULT}" == "success" ]]' in workflow
+
+
+def test_container_jobs_initialize_submodules_after_safe_directories():
+    pr_workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    nightly_workflow = (
+        ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "submodules: recursive" not in pr_workflow
+    assert "submodules: recursive" not in nightly_workflow
+    assert pr_workflow.count("submodules: false") == 5
+    assert nightly_workflow.count("submodules: false") == 3
