@@ -147,6 +147,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Restore runner workspace ownership
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
+
   nightly-sglang:
     name: Qwen3-0.6B SGLang off-policy (3-step)
     needs:
@@ -245,6 +250,11 @@ jobs:
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Restore runner workspace ownership
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
 
   finish:
     name: Finish

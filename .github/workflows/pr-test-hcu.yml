@@ -168,6 +168,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Restore runner workspace ownership
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
+
   hcu-smoke:
     name: HCU smoke
     needs:
@@ -225,6 +230,11 @@ jobs:
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Restore runner workspace ownership
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
 
   hcu-vllm-e2e:
     name: HCU vLLM GRPO one-step
@@ -289,6 +299,11 @@ jobs:
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Restore runner workspace ownership
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
 
   finish:
     name: Finish

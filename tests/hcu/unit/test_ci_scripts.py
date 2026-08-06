@@ -66,6 +66,27 @@ def test_cleanup_only_targets_owned_processes():
     assert "killall" not in script
 
 
+def test_runner_permission_restore_is_scoped_to_the_actions_workspace():
+    script = read_script("ci/restore_runner_permissions.sh")
+
+    assert "SPDX-License-Identifier: Apache-2.0" in script
+    assert "GITHUB_WORKSPACE" in script
+    assert "RUNNER_TEMP" in script
+    assert "realpath -m" in script
+    assert 'case "${workspace}"' in script
+    assert 'stat -c \'%u:%g\'' in script
+    assert 'chown -R -- "${owner}" "${workspace}"' in script
+
+    pr_workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+    nightly_workflow = (
+        ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
+    ).read_text(encoding="utf-8")
+    assert pr_workflow.count("bash tests/hcu/ci/restore_runner_permissions.sh") == 3
+    assert nightly_workflow.count("bash tests/hcu/ci/restore_runner_permissions.sh") == 2
+
+
 def test_nightly_ci_checks_are_outside_training_scripts():
     workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
         encoding="utf-8"
@@ -334,6 +355,7 @@ def test_ci_support_scripts_live_under_hcu_tests():
         HCU_TEST_DIR / "ci" / "cleanup.sh",
         HCU_TEST_DIR / "ci" / "check_nightly_result.py",
         HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
+        HCU_TEST_DIR / "ci" / "restore_runner_permissions.sh",
         HCU_TEST_DIR / "ci" / "verify_submodules.py",
         HCU_TEST_DIR / "pr" / "run_hcu_smoke.sh",
         HCU_TEST_DIR / "pr" / "run_upstream_pr_tests.sh",
