@@ -57,12 +57,7 @@ workspace
 
 ### 2.2 数据集处理
 
-执行如下命令
-```shell
-cd /workspace/verl-das/verl
-
-python examples/data_preprocess/gsm8k.py --local_dataset_path /workspace/data/gsm8k --local_save_dir /workspace/data/gsm8k
-```
+详见[数据集处理指导](../examples/data_preprocess/README.md)
 
 
 ## 3、模型准备
