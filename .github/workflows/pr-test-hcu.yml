@@ -24,7 +24,10 @@ jobs:
     name: Check changes
     needs:
       - authorize-hcu
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     outputs:
       runtime: ${{ steps.changes.outputs.runtime }}
@@ -63,7 +66,10 @@ jobs:
 
   authorize-hcu:
     name: Authorize HCU execution
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     steps:
       - name: Authorize same-repository PR
@@ -92,7 +98,10 @@ jobs:
       - check-changes
       - authorize-hcu
     if: needs.check-changes.outputs.runtime == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     env:
       VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
@@ -174,7 +183,10 @@ jobs:
       - authorize-hcu
       - validate-config
       - hcu-smoke
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     steps:
       - name: Evaluate required jobs

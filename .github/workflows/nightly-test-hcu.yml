@@ -38,7 +38,10 @@ env:
 jobs:
   validate-config:
     name: Validate HCU config
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     steps:
       - name: Checkout repository
@@ -250,7 +253,10 @@ jobs:
       - validate-config
       - nightly-vllm
       - nightly-sglang
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
     timeout-minutes: 5
     steps:
       - name: Evaluate nightly jobs
