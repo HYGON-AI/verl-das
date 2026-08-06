@@ -2,3 +2,11 @@ pr_smoke:
   script: tests/hcu/pr/run_hcu_smoke.sh
   required_gpus: 8
   timeout_minutes: 20
+pr_upstream_tests:
+  script: tests/hcu/pr/run_upstream_pr_tests.sh
+  required_gpus: 0
+  timeout_minutes: 10
+pr_vllm_grpo_1step:
+  script: tests/hcu/pr/run_vllm_grpo_1step.sh
+  required_gpus: 8
+  timeout_minutes: 30

@@ -127,6 +127,7 @@ def test_smoke_and_workflow_use_repository_ci_logs():
 def test_e2e_scripts_use_configured_roots_without_downloading():
     vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
     sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
+    pr_vllm = read_script("pr/run_vllm_grpo_1step.sh")
 
     assert "Qwen2.5-0.5B-Instruct" in vllm
     assert "Qwen3-0.6B" in sglang
@@ -142,6 +143,12 @@ def test_e2e_scripts_use_configured_roots_without_downloading():
 
     assert "trainer.total_training_steps=5" in vllm
     assert "trainer.total_training_steps=3" in sglang
+    assert "trainer.total_training_steps=1" in pr_vllm
+    assert "VERL_HCU_MODEL_ROOT" in pr_vllm
+    assert "VERL_HCU_DATA_ROOT" in pr_vllm
+    assert "hf download" not in pr_vllm
+    assert "wget " not in pr_vllm
+    assert "curl " not in pr_vllm
 
 
 def test_nightly_cases_match_the_validated_training_scripts():
@@ -213,6 +220,8 @@ def test_ci_case_inventory_registers_requested_cases():
     ).read_text(encoding="utf-8")
 
     assert "pr_smoke:" in pr_cases
+    assert "pr_upstream_tests:" in pr_cases
+    assert "pr_vllm_grpo_1step:" in pr_cases
     assert "nightly_" not in pr_cases
     assert "nightly_vllm:" in nightly_cases
     assert "nightly_sglang:" in nightly_cases
@@ -248,7 +257,7 @@ def test_pr_hcu_job_is_limited_to_same_repository_changes():
     assert "OWNER|MEMBER|COLLABORATOR" not in workflow
 
 
-def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
+def test_pr_hcu_runtime_trigger_tracks_hcu_owned_and_pinned_upstream_paths():
     workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
     )
@@ -256,14 +265,18 @@ def test_pr_hcu_runtime_trigger_only_tracks_hcu_patch_tree():
         '          echo "runtime=${runtime}"', maxsplit=1
     )[0]
 
-    assert "hcu_verl/*)" in classifier
+    for related_path in (
+        "hcu_verl/*",
+        "tests/hcu/*",
+        "third_party/verl",
+        ".gitmodules",
+        ".github/workflows/pr-test-hcu.yml",
+    ):
+        assert related_path in classifier
     for unrelated_path in (
         "examples/*",
-        "third_party/*",
         "requirements.txt",
-        ".gitmodules",
-        "tests/hcu/*",
-        ".github/workflows/*",
+        "docs/*",
     ):
         assert unrelated_path not in classifier
 
@@ -301,8 +314,8 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
         ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
     ).read_text(encoding="utf-8")
 
-    assert pr_workflow.count("\n      - bw1000\n") == 1
-    assert nightly_workflow.count("\n      - bw1000\n") == 2
+    assert pr_workflow.count("\n      - bw1000\n") == 7
+    assert nightly_workflow.count("\n      - bw1000\n") == 4
     assert "VERL_HCU_ACCELERATOR" not in nightly_workflow
     assert "name: BW1000" not in pr_workflow
     assert "name: BW1000" not in nightly_workflow
@@ -323,6 +336,8 @@ def test_ci_support_scripts_live_under_hcu_tests():
         HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
         HCU_TEST_DIR / "ci" / "verify_submodules.py",
         HCU_TEST_DIR / "pr" / "run_hcu_smoke.sh",
+        HCU_TEST_DIR / "pr" / "run_upstream_pr_tests.sh",
+        HCU_TEST_DIR / "pr" / "run_vllm_grpo_1step.sh",
         HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_5step.sh",
         HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_3step.sh",
     )
@@ -384,3 +399,43 @@ def test_nightly_cases_use_complete_read_only_gsm8k_data_directly():
         "${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro"
     )
     assert workflow.count(readonly_mount) == 2
+
+
+def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
+    script = read_script("pr/run_upstream_pr_tests.sh")
+
+    assert "tests/special_sanity" in script
+    assert "tests/test_protocol_on_cpu.py" in script
+    assert "tests/trainer/ppo/test_core_algos_on_cpu.py" in script
+    assert "tests/workers/config/test_actor_config_on_cpu.py" in script
+    assert "--deselect" in script
+    assert "test_target_modules_raises_on_invalid_type" in script
+    assert "pinned upstream v0.8.0" in script
+
+
+def test_pr_vllm_case_is_a_bounded_real_training_step():
+    script = read_script("pr/run_vllm_grpo_1step.sh")
+
+    assert "check_environment.py\" runtime --require-data-roots --require-gpus 8" in script
+    assert "python3 -m verl.trainer.main_ppo" in script
+    assert "actor_rollout_ref.rollout.name=vllm" in script
+    assert "algorithm.adv_estimator=grpo" in script
+    assert "data.train_batch_size=16" in script
+    assert "actor_rollout_ref.rollout.n=2" in script
+    assert "trainer.total_training_steps=1" in script
+    assert 'touch "${run_dir}/ray-owned"' in script
+
+
+def test_pr_finish_requires_all_three_test_layers():
+    workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "upstream-pr-tests:" in workflow
+    assert "hcu-smoke:" in workflow
+    assert "hcu-vllm-e2e:" in workflow
+    assert "UPSTREAM_RESULT" in workflow
+    assert "SMOKE_RESULT" in workflow
+    assert "E2E_RESULT" in workflow
+    assert '[[ "${UPSTREAM_RESULT}" == "success" ]]' in workflow
+    assert '[[ "${E2E_RESULT}" == "success" ]]' in workflow
