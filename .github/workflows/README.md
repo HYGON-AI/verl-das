@@ -59,9 +59,13 @@ the default branch's trusted `pull_request_target` workflow.
 
 ## Workflows
 
-- `PR Test (HCU)` always runs the quality gate. Changes under `hcu_verl/`
-  additionally run the fixed-submodule, HCU device, patch, worker, and Ray
-  smoke checks from `tests/hcu/pr/`. Other paths do not occupy the HCU runner.
+- `Quality Gate` reuses the organization-wide incremental checks from
+  `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
+  `main`.
+- `PR Test (HCU)` runs the HCU-specific authorization and routing checks.
+  Changes under `hcu_verl/` additionally run the fixed-submodule, HCU device,
+  patch, worker, and Ray smoke checks from `tests/hcu/pr/`. Other paths do not
+  occupy the HCU runner.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   under `tests/hcu/nightly/bw1000/` run serially on the same eight-card runner.
   Manual runs can select one case.
@@ -70,7 +74,7 @@ Model and dataset downloads are forbidden in both workflows. Nightly tests use
 only the configured local roots and fail with a clear message if an input is
 missing.
 
-After the initial workflows are stable, configure only `PR Test (HCU) / Finish`
-as the required branch-protection check. The finish job already evaluates every
-required upstream job and prevents skipped runtime checks from being treated as
-success.
+After the workflows are stable, configure `Checks / All required checks` and
+`PR Test (HCU) / Finish` as required branch-protection checks. The HCU finish
+job evaluates every HCU-specific upstream job and prevents skipped runtime
+checks from being treated as success.

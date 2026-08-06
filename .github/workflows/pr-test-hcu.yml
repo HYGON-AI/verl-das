@@ -61,87 +61,6 @@ jobs:
 
           echo "runtime=${runtime}" | tee -a "${GITHUB_OUTPUT}"
 
-  quality-gate:
-    name: Quality gate
-    needs:
-      - check-changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: false
-
-      - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-        with:
-          python-version: "3.10"
-          cache: pip
-
-      - name: Install quality tools
-        run: python -m pip install "pytest==8.4.1" "PyYAML==6.0.2" "ruff==0.12.2"
-
-      - name: Check PR metadata
-        if: github.event_name == 'pull_request_target'
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: python tests/hcu/ci/check_pr_metadata.py
-
-      - name: Run Ruff
-        run: |
-          # Existing adaptation imports intentionally trigger patch side effects.
-          ruff check hcu_verl --ignore F401 --output-format=github
-          ruff check tests/hcu --output-format=github
-          ruff format --check tests/hcu
-
-      - name: Compile Python sources
-        run: python -m compileall -q hcu_verl tests/hcu
-
-      - name: Check license headers
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          roots = (Path("hcu_verl"), Path("tests/hcu"))
-          missing = []
-          for root in roots:
-              for path in root.rglob("*"):
-                  if path.suffix not in {".py", ".sh"}:
-                      continue
-                  head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:20])
-                  if "Licensed under the Apache License, Version 2.0" not in head:
-                      missing.append(str(path))
-          if missing:
-              raise SystemExit("Missing Apache-2.0 header:\n" + "\n".join(missing))
-          PY
-
-      - name: Check shell syntax
-        shell: bash
-        run: |
-          find tests/hcu -type f -name '*.sh' -print0 \
-            | xargs -0 -r -n1 bash -n
-
-      - name: Validate workflow YAML
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          import yaml
-
-          for path in Path(".github/workflows").glob("*.yml"):
-              yaml.safe_load(path.read_text(encoding="utf-8"))
-              print(f"validated {path}")
-          PY
-
-      - name: Run CI unit tests
-        run: pytest -q tests/hcu/unit
-
   authorize-hcu:
     name: Authorize HCU execution
     runs-on: ubuntu-latest
@@ -171,7 +90,6 @@ jobs:
     name: Validate HCU config
     needs:
       - check-changes
-      - quality-gate
       - authorize-hcu
     if: needs.check-changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
@@ -194,7 +112,6 @@ jobs:
     name: HCU smoke
     needs:
       - check-changes
-      - quality-gate
       - authorize-hcu
       - validate-config
     if: needs.check-changes.outputs.runtime == 'true'
@@ -254,7 +171,6 @@ jobs:
     if: always()
     needs:
       - check-changes
-      - quality-gate
       - authorize-hcu
       - validate-config
       - hcu-smoke
@@ -266,7 +182,6 @@ jobs:
         env:
           RUNTIME_CHANGED: ${{ needs.check-changes.outputs.runtime }}
           CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
-          QUALITY_RESULT: ${{ needs.quality-gate.result }}
           AUTH_RESULT: ${{ needs.authorize-hcu.result }}
           CONFIG_RESULT: ${{ needs.validate-config.result }}
           SMOKE_RESULT: ${{ needs.hcu-smoke.result }}
@@ -274,7 +189,6 @@ jobs:
           set -euo pipefail
 
           [[ "${CHECK_CHANGES_RESULT}" == "success" ]]
-          [[ "${QUALITY_RESULT}" == "success" ]]
           [[ "${AUTH_RESULT}" == "success" ]]
 
           if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
@@ -289,7 +203,6 @@ jobs:
             echo "## HCU PR gate"
             echo
             echo "- runtime changed: ${RUNTIME_CHANGED}"
-            echo "- quality gate: ${QUALITY_RESULT}"
             echo "- HCU authorization: ${AUTH_RESULT}"
             echo "- config validation: ${CONFIG_RESULT}"
             echo "- HCU smoke: ${SMOKE_RESULT}"
