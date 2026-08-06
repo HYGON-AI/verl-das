@@ -404,6 +404,7 @@ def test_nightly_cases_use_complete_read_only_gsm8k_data_directly():
 def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
     script = read_script("pr/run_upstream_pr_tests.sh")
 
+    assert "SPDX-License-Identifier: Apache-2.0" in script
     assert "tests/special_sanity" in script
     assert "tests/test_protocol_on_cpu.py" in script
     assert "tests/trainer/ppo/test_core_algos_on_cpu.py" in script
@@ -416,6 +417,7 @@ def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
 def test_pr_vllm_case_is_a_bounded_real_training_step():
     script = read_script("pr/run_vllm_grpo_1step.sh")
 
+    assert "SPDX-License-Identifier: Apache-2.0" in script
     assert "check_environment.py\" runtime --require-data-roots --require-gpus 8" in script
     assert "python3 -m verl.trainer.main_ppo" in script
     assert "actor_rollout_ref.rollout.name=vllm" in script
