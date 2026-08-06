@@ -47,6 +47,7 @@ def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
     assert "third_party/VeOmni" in script
     assert 'git -C "${repo_root}" submodule sync --recursive' in script
     assert 'git -C "${repo_root}" submodule update --init --recursive' in script
+    assert '"${repo_root}/third_party/verl/recipe"' in script
     assert 'patch_source="${repo_root}/hcu_verl/patch_init.py"' in script
     assert 'patch_target="${repo_root}/third_party/verl/verl/__init__.py"' in script
     assert 'cp -- "${patch_source}" "${patch_tmp}"' in script
@@ -135,6 +136,8 @@ def test_smoke_uses_real_torch_and_ray_gpu_resources():
 
 def test_smoke_and_workflow_use_repository_ci_logs():
     smoke = read_script("pr/run_hcu_smoke.sh")
+    upstream = read_script("pr/run_upstream_pr_tests.sh")
+    pr_vllm = read_script("pr/run_vllm_grpo_1step.sh")
     workflow = (ROOT / ".github" / "workflows" / "nightly-test-hcu.yml").read_text(
         encoding="utf-8"
     )
@@ -144,7 +147,10 @@ def test_smoke_and_workflow_use_repository_ci_logs():
     assert "environment.log" in smoke
     assert "pytest.log" in smoke
     assert "${VERL_HCU_CI_RUN_ID:-smoke-" in smoke
+    for script in (smoke, upstream, pr_vllm):
+        assert 'log_root="${REPO_ROOT}/${log_root}"' in script
     assert workflow.count("VERL_HCU_CI_LOG_DIR:") == 2
+    assert "${{ github.workspace }}/ci-logs" not in workflow
     assert "vllm.log" in workflow
     assert "sglang.log" in workflow
 

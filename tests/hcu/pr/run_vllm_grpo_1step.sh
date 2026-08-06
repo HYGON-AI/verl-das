@@ -33,6 +33,9 @@ fi
 export VERL_HCU_CI_TMP_ROOT
 run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
 log_root="${VERL_HCU_CI_LOG_DIR:-${REPO_ROOT}/ci-logs/${VERL_HCU_CI_RUN_ID}}"
+if [[ "${log_root}" != /* ]]; then
+    log_root="${REPO_ROOT}/${log_root}"
+fi
 training_log="${log_root}/vllm-grpo-1step.log"
 mkdir -p "${run_dir}" "${log_root}"
 exec > >(tee -a "${training_log}") 2>&1

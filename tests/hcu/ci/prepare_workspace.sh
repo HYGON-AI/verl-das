@@ -27,6 +27,7 @@ prepare_hcu_workspace() {
     for safe_path in \
         "${repo_root}" \
         "${repo_root}/third_party/verl" \
+        "${repo_root}/third_party/verl/recipe" \
         "${repo_root}/third_party/Megatron-LM" \
         "${repo_root}/third_party/VeOmni"; do
         if ! git config --global --get-all safe.directory 2>/dev/null |

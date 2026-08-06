@@ -21,6 +21,9 @@ CI_DIR="${SCRIPT_DIR}/../ci"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 export VERL_HCU_CI_RUN_ID="${VERL_HCU_CI_RUN_ID:-upstream-pr-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$}"
 log_root="${VERL_HCU_CI_LOG_DIR:-${REPO_ROOT}/ci-logs/${VERL_HCU_CI_RUN_ID}}"
+if [[ "${log_root}" != /* ]]; then
+    log_root="${REPO_ROOT}/${log_root}"
+fi
 pytest_log="${log_root}/upstream-pr-tests.log"
 mkdir -p "${log_root}"
 

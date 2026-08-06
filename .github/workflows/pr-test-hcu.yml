@@ -146,7 +146,7 @@ jobs:
         - /opt/hyhal:/opt/hyhal:ro
     env:
       VERL_HCU_CI_RUN_ID: upstream-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/upstream-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/upstream-pr-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout repository and fixed submodules
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -219,7 +219,7 @@ jobs:
         - /opt/hyhal:/opt/hyhal:ro
     env:
       VERL_HCU_CI_RUN_ID: pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
@@ -301,7 +301,7 @@ jobs:
         - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
     env:
       VERL_HCU_CI_RUN_ID: vllm-grpo-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/vllm-grpo-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/vllm-grpo-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
       VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
       VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}

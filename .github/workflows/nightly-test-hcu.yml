@@ -82,7 +82,7 @@ jobs:
         - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
     env:
       VERL_HCU_CI_RUN_ID: nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
@@ -201,7 +201,7 @@ jobs:
         - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
     env:
       VERL_HCU_CI_RUN_ID: nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
