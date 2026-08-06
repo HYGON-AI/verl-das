@@ -50,7 +50,9 @@ jobs:
           submodules: false
 
       - name: Validate repository variables
-        run: python3 tests/hcu/ci/check_environment.py config --profile nightly
+        run: >-
+          "${HOME}/.local/bin/python3.10"
+          tests/hcu/ci/check_environment.py config --profile nightly
 
   nightly-vllm:
     name: Qwen2.5-0.5B GRPO vLLM (5-step)

@@ -323,8 +323,10 @@ def test_workflows_validate_only_their_own_configuration_profile():
         ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
     ).read_text(encoding="utf-8")
 
-    assert "python3 tests/hcu/ci/check_environment.py config --profile pr" in pr_workflow
-    assert "python3 tests/hcu/ci/check_environment.py config --profile nightly" in nightly_workflow
+    assert '"${HOME}/.local/bin/python3.10"' in pr_workflow
+    assert '"${HOME}/.local/bin/python3.10"' in nightly_workflow
+    assert "check_environment.py config --profile pr" in pr_workflow
+    assert "check_environment.py config --profile nightly" in nightly_workflow
     assert "run: python " not in pr_workflow
     assert "run: python " not in nightly_workflow
 

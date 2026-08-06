@@ -117,7 +117,9 @@ jobs:
           submodules: false
 
       - name: Validate repository variables
-        run: python3 tests/hcu/ci/check_environment.py config --profile pr
+        run: >-
+          "${HOME}/.local/bin/python3.10"
+          tests/hcu/ci/check_environment.py config --profile pr
 
   upstream-pr-tests:
     name: Upstream sanity and CPU tests
