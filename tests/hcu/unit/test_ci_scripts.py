@@ -317,7 +317,6 @@ def test_ci_support_scripts_live_under_hcu_tests():
     assert not legacy_dir.exists() or not any(legacy_dir.rglob("*"))
     expected = (
         HCU_TEST_DIR / "ci" / "check_environment.py",
-        HCU_TEST_DIR / "ci" / "check_pr_metadata.py",
         HCU_TEST_DIR / "ci" / "cleanup.sh",
         HCU_TEST_DIR / "ci" / "check_nightly_result.py",
         HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
