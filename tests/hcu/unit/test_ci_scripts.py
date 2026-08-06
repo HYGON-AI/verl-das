@@ -38,6 +38,19 @@ def test_all_shell_scripts_enable_strict_mode():
         assert "set -euo pipefail" in path.read_text(encoding="utf-8"), path
 
 
+def test_new_pr_shell_scripts_do_not_add_license_headers():
+    scripts = (
+        read_script("ci/restore_runner_permissions.sh"),
+        read_script("pr/run_upstream_pr_tests.sh"),
+        read_script("pr/run_vllm_grpo_1step.sh"),
+    )
+
+    for script in scripts:
+        assert "Copyright" not in script
+        assert "SPDX-License-Identifier" not in script
+        assert "Licensed under" not in script
+
+
 def test_prepare_workspace_sets_paths_and_verifies_patch_copy():
     script = read_script("ci/prepare_workspace.sh")
 
@@ -72,7 +85,6 @@ def test_cleanup_only_targets_owned_processes():
 def test_runner_permission_restore_is_scoped_to_the_actions_workspace():
     script = read_script("ci/restore_runner_permissions.sh")
 
-    assert "SPDX-License-Identifier: Apache-2.0" in script
     assert "GITHUB_WORKSPACE" in script
     assert "RUNNER_TEMP" in script
     assert "realpath -m" in script
@@ -440,7 +452,6 @@ def test_nightly_cases_use_complete_read_only_gsm8k_data_directly():
 def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
     script = read_script("pr/run_upstream_pr_tests.sh")
 
-    assert "SPDX-License-Identifier: Apache-2.0" in script
     assert "tests/special_sanity" in script
     assert "tests/test_protocol_on_cpu.py" in script
     assert "tests/trainer/ppo/test_core_algos_on_cpu.py" in script
@@ -453,7 +464,6 @@ def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
 def test_pr_vllm_case_is_a_bounded_real_training_step():
     script = read_script("pr/run_vllm_grpo_1step.sh")
 
-    assert "SPDX-License-Identifier: Apache-2.0" in script
     assert "check_environment.py\" runtime --require-data-roots --require-gpus 8" in script
     assert "python3 -m verl.trainer.main_ppo" in script
     assert "actor_rollout_ref.rollout.name=vllm" in script
