@@ -56,7 +56,7 @@ jobs:
           runtime=false
           while IFS= read -r path; do
             case "${path}" in
-              hcu_verl/*)
+              hcu_verl/*|tests/hcu/*|third_party/verl|.gitmodules|.github/workflows/pr-test-hcu.yml)
                 runtime=true
                 ;;
             esac
@@ -106,6 +106,8 @@ jobs:
     env:
       VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
       VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+      VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
+      VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -115,7 +117,77 @@ jobs:
           submodules: false
 
       - name: Validate repository variables
-        run: python tests/hcu/ci/check_environment.py config --profile pr
+        run: >-
+          "${HOME}/.local/bin/python3.10"
+          tests/hcu/ci/check_environment.py config --profile pr
+
+  upstream-pr-tests:
+    name: Upstream sanity and CPU tests
+    needs:
+      - check-changes
+      - authorize-hcu
+      - validate-config
+    if: needs.check-changes.outputs.runtime == 'true'
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 10
+    container:
+      image: ${{ vars.VERL_HCU_PR_IMAGE || 'invalid.local/verl-hcu-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --security-opt seccomp=unconfined
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+    env:
+      VERL_HCU_CI_RUN_ID: upstream-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/upstream-pr-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          clean: true
+
+      - name: Run pinned upstream PR tests
+        shell: bash
+        run: bash tests/hcu/pr/run_upstream_pr_tests.sh
+
+      - name: Upload upstream test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verl-upstream-pr-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+
+  restore-after-upstream:
+    name: Restore workspace after upstream tests
+    if: always() && needs.check-changes.outputs.runtime == 'true'
+    needs:
+      - check-changes
+      - upstream-pr-tests
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+    steps:
+      - name: Restore runner workspace ownership
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
 
   hcu-smoke:
     name: HCU smoke
@@ -123,6 +195,8 @@ jobs:
       - check-changes
       - authorize-hcu
       - validate-config
+      - upstream-pr-tests
+      - restore-after-upstream
     if: needs.check-changes.outputs.runtime == 'true'
     runs-on:
       - self-hosted
@@ -145,7 +219,7 @@ jobs:
         - /opt/hyhal:/opt/hyhal:ro
     env:
       VERL_HCU_CI_RUN_ID: pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ${{ github.workspace }}/ci-logs/pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
@@ -154,7 +228,7 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          submodules: recursive
+          submodules: false
           clean: true
 
       - name: Run HCU smoke
@@ -175,6 +249,109 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  restore-after-smoke:
+    name: Restore workspace after HCU smoke
+    if: always() && needs.check-changes.outputs.runtime == 'true'
+    needs:
+      - check-changes
+      - hcu-smoke
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+    steps:
+      - name: Restore runner workspace ownership
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
+
+  hcu-vllm-e2e:
+    name: HCU vLLM GRPO one-step
+    needs:
+      - check-changes
+      - authorize-hcu
+      - validate-config
+      - upstream-pr-tests
+      - hcu-smoke
+      - restore-after-smoke
+    if: needs.check-changes.outputs.runtime == 'true'
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 30
+    container:
+      image: ${{ vars.VERL_HCU_PR_IMAGE || 'invalid.local/verl-hcu-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --shm-size=64g
+        --ipc=host
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
+        - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
+    env:
+      VERL_HCU_CI_RUN_ID: vllm-grpo-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/vllm-grpo-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+      VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
+      VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          clean: true
+
+      - name: Run HCU vLLM GRPO one-step E2E
+        shell: bash
+        run: bash tests/hcu/pr/run_vllm_grpo_1step.sh
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/cleanup.sh
+
+      - name: Upload E2E logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verl-hcu-pr-vllm-grpo-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+
+  restore-after-e2e:
+    name: Restore workspace after HCU E2E
+    if: always() && needs.check-changes.outputs.runtime == 'true'
+    needs:
+      - check-changes
+      - hcu-vllm-e2e
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+    steps:
+      - name: Restore runner workspace ownership
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
+
   finish:
     name: Finish
     if: always()
@@ -182,7 +359,12 @@ jobs:
       - check-changes
       - authorize-hcu
       - validate-config
+      - upstream-pr-tests
+      - restore-after-upstream
       - hcu-smoke
+      - restore-after-smoke
+      - hcu-vllm-e2e
+      - restore-after-e2e
     runs-on:
       - self-hosted
       - bw1000
@@ -196,7 +378,12 @@ jobs:
           CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
           AUTH_RESULT: ${{ needs.authorize-hcu.result }}
           CONFIG_RESULT: ${{ needs.validate-config.result }}
+          UPSTREAM_RESULT: ${{ needs.upstream-pr-tests.result }}
+          RESTORE_UPSTREAM_RESULT: ${{ needs.restore-after-upstream.result }}
           SMOKE_RESULT: ${{ needs.hcu-smoke.result }}
+          RESTORE_SMOKE_RESULT: ${{ needs.restore-after-smoke.result }}
+          E2E_RESULT: ${{ needs.hcu-vllm-e2e.result }}
+          RESTORE_E2E_RESULT: ${{ needs.restore-after-e2e.result }}
         run: |
           set -euo pipefail
 
@@ -205,10 +392,20 @@ jobs:
 
           if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
             [[ "${CONFIG_RESULT}" == "success" ]]
+            [[ "${UPSTREAM_RESULT}" == "success" ]]
+            [[ "${RESTORE_UPSTREAM_RESULT}" == "success" ]]
             [[ "${SMOKE_RESULT}" == "success" ]]
+            [[ "${RESTORE_SMOKE_RESULT}" == "success" ]]
+            [[ "${E2E_RESULT}" == "success" ]]
+            [[ "${RESTORE_E2E_RESULT}" == "success" ]]
           else
             [[ "${CONFIG_RESULT}" == "skipped" ]]
+            [[ "${UPSTREAM_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_UPSTREAM_RESULT}" == "skipped" ]]
             [[ "${SMOKE_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_SMOKE_RESULT}" == "skipped" ]]
+            [[ "${E2E_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_E2E_RESULT}" == "skipped" ]]
           fi
 
           {
@@ -217,5 +414,10 @@ jobs:
             echo "- runtime changed: ${RUNTIME_CHANGED}"
             echo "- HCU authorization: ${AUTH_RESULT}"
             echo "- config validation: ${CONFIG_RESULT}"
+            echo "- upstream sanity and CPU tests: ${UPSTREAM_RESULT}"
+            echo "- restore after upstream tests: ${RESTORE_UPSTREAM_RESULT}"
             echo "- HCU smoke: ${SMOKE_RESULT}"
+            echo "- restore after HCU smoke: ${RESTORE_SMOKE_RESULT}"
+            echo "- HCU vLLM GRPO one-step: ${E2E_RESULT}"
+            echo "- restore after HCU E2E: ${RESTORE_E2E_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"
