@@ -10,11 +10,11 @@ Configure these variables before enabling the workflows:
 | Variable | Purpose |
 | --- | --- |
 | `VERL_HCU_CI_RUNNER_LABEL` | Custom label of the self-hosted HCU runner |
-| `VERL_HCU_PR_IMAGE` | HCU image used by the PR smoke job |
+| `VERL_HCU_PR_IMAGE` | HCU image used by all PR test layers |
 | `VERL_HCU_VLLM_IMAGE` | HCU image used by the vLLM nightly job |
 | `VERL_HCU_SGLANG_IMAGE` | HCU image used by the SGLang nightly job |
-| `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into nightly containers |
-| `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory |
+| `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into PR E2E and nightly containers |
+| `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory used by PR E2E and nightly jobs |
 
 All image values must use an immutable digest:
 
@@ -22,7 +22,8 @@ All image values must use an immutable digest:
 registry.example.com/project/image@sha256:<64 hexadecimal characters>
 ```
 
-The PR configuration check requires only the runner label and PR image.
+The PR configuration check requires the runner label, PR image, model root,
+and dataset root because the PR gate includes a real one-step training case.
 Nightly configuration additionally requires the vLLM and SGLang images plus
 the model and dataset roots.
 
@@ -46,6 +47,12 @@ configured above. Runtime dependencies belong in the pinned images; the
 workflows do not install the floating dependency from the product
 `requirements.txt`.
 
+Every container test is followed by a host-side ownership restoration job
+before the next test layer starts. It validates that `GITHUB_WORKSPACE` is
+inside the runner work root, derives the runner UID/GID from `RUNNER_TEMP`, and
+uses the already-pinned HCU image to restore only that workspace. Keeping this
+as a separate job makes it run after `actions/checkout` post-job cleanup.
+
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU
 execution is limited to same-repository branches opened by an owner,
@@ -63,16 +70,18 @@ the default branch's trusted `pull_request_target` workflow.
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
   `main`.
 - `PR Test (HCU)` runs the HCU-specific authorization and routing checks.
-  Changes under `hcu_verl/` additionally run the fixed-submodule, HCU device,
-  patch, worker, and Ray smoke checks from `tests/hcu/pr/`. Other paths do not
+  HCU runtime, HCU test, pinned VERL submodule, and PR-workflow changes run
+  three test layers from `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU tests,
+  fixed-submodule/device/patch/worker/Ray smoke checks, and a real one-step
+  Qwen2.5-0.5B GRPO FSDP/vLLM training case on eight cards. Other paths do not
   occupy the HCU runner.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   under `tests/hcu/nightly/bw1000/` run serially on the same eight-card runner.
   Manual runs can select one case.
 
-Model and dataset downloads are forbidden in both workflows. Nightly tests use
-only the configured local roots and fail with a clear message if an input is
-missing.
+Model and dataset downloads are forbidden in both workflows. PR E2E and
+nightly tests use only the configured local roots and fail with a clear message
+if an input is missing.
 
 After the workflows are stable, configure `Checks / All required checks` and
 `PR Test (HCU) / Finish` as required branch-protection checks. The HCU finish

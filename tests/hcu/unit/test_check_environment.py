@@ -38,6 +38,8 @@ IMAGE_ENV_VARS = (
 PR_CONFIG_ENV_VARS = (
     "VERL_HCU_CI_RUNNER_LABEL",
     "VERL_HCU_PR_IMAGE",
+    "VERL_HCU_MODEL_ROOT",
+    "VERL_HCU_DATA_ROOT",
 )
 NIGHTLY_CONFIG_ENV_VARS = (
     "VERL_HCU_CI_RUNNER_LABEL",
@@ -97,7 +99,7 @@ def test_validate_config_accepts_nonexistent_host_paths():
     assert module.validate_config(config_environment()) == []
 
 
-def test_validate_pr_config_does_not_require_nightly_resources():
+def test_validate_pr_config_does_not_require_nightly_images():
     module = load_module()
     environment = {
         name: value
