@@ -1,0 +1,55 @@
+verl-das
+Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+
+This product includes software developed at
+Hygon Information Technology Co., Ltd.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+================================================================================
+Upstream baseline
+================================================================================
+
+This product is derived from and contains modifications to:
+
+  verl
+  Copyright 2023-2024 Bytedance Ltd. and/or its affiliates
+  Licensed under the Apache License, Version 2.0
+  Source:   https://github.com/verl-project/verl
+  Baseline: branch release/v0.8.0
+            tag    v0.8.0
+            commit 7aed6b230776f963fa09509c10d9c3a767d1102c
+
+HCU adaptations, bug fixes, and additional features under `hcu_verl/`
+are original contributions by Hygon Information Technology Co., Ltd.,
+licensed under the Apache License, Version 2.0.
+
+================================================================================
+Third-party components referenced as git submodules
+================================================================================
+
+The following projects are included via git submodules under `third_party/`.
+They are governed by their own license terms; see each submodule's LICENSE
+file for details.
+
+  verl
+    Source:    https://github.com/verl-project/verl
+    Copyright: 2023-2024 Bytedance Ltd. and/or its affiliates
+    License:   Apache License, Version 2.0
+               (see third_party/verl/LICENSE and third_party/verl/Notice.txt)
+
+  Megatron-LM
+    Source:    https://github.com/NVIDIA/Megatron-LM
+    Copyright: (c) 2019-2025, NVIDIA CORPORATION. All rights reserved.
+    License:   NVIDIA Megatron-LM License
+               (see third_party/Megatron-LM/LICENSE)
+
+  VeOmni
+    Source:    https://github.com/ByteDance-Seed/VeOmni
+    Copyright: 2025 Bytedance Ltd. and/or its affiliates
+    License:   Apache License, Version 2.0
+               (see third_party/VeOmni/LICENSE)

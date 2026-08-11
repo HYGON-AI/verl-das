@@ -51,4 +51,4 @@ HCU adaptations, modifications, and original contributions by Hygon Information 
 
 Modified by Hygon Information Technology Co., Ltd.
 
-Original copyright notices and license terms from the upstream SGLang project are retained. See [LICENSE](LICENSE) for details.
+Original copyright notices and license terms from the upstream verl project are retained. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
