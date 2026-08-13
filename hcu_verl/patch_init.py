@@ -33,6 +33,33 @@ with open(os.path.join(version_folder, "version/version")) as f:
 set_basic_config(level=logging.WARNING)
 
 
+def _make_optional_transfer_queue_mock_picklable():
+    """Keep Ray serialization working when transfer_queue is not installed."""
+    try:
+        from .utils import transferqueue_utils
+    except ImportError:
+        return
+
+    mock_type = type(transferqueue_utils.tq)
+    if mock_type.__name__ != "_MockTQ":
+        return
+
+    original_getattr = mock_type.__getattr__
+    if getattr(original_getattr, "_hcu_pickle_safe", False):
+        return
+
+    def _getattr(self, name):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        return original_getattr(self, name)
+
+    _getattr._hcu_pickle_safe = True
+    mock_type.__getattr__ = _getattr
+
+
+_make_optional_transfer_queue_mock_picklable()
+
+
 __all__ = ["DataProto", "__version__"]
 
 

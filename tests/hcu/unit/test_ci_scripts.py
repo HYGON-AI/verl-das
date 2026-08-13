@@ -501,16 +501,19 @@ def test_hcu_unit_suite_uses_the_pinned_image_environment():
     )
 
 
-def test_optional_dependencies_are_skipped_when_absent_from_the_pinned_image():
+def test_optional_mlflow_dependency_is_skipped_when_absent_from_the_pinned_image():
     mlflow_test = (ROOT / "tests" / "utils" / "test_mlflow_key_sanitization.py").read_text(
         encoding="utf-8"
     )
-    transfer_queue_test = (
-        ROOT / "tests" / "single_controller" / "test_colocated_workers.py"
-    ).read_text(encoding="utf-8")
 
     assert 'find_spec("mlflow")' in mlflow_test
-    assert 'find_spec("transfer_queue")' in transfer_queue_test
+
+
+def test_hcu_patch_keeps_the_optional_transfer_queue_mock_picklable():
+    patch = (ROOT / "hcu_verl" / "patch_init.py").read_text(encoding="utf-8")
+
+    assert "_make_optional_transfer_queue_mock_picklable" in patch
+    assert 'name.startswith("__") and name.endswith("__")' in patch
 
 
 def test_pr_vllm_case_is_a_bounded_real_training_step():

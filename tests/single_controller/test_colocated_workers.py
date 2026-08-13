@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib.util
-
-import pytest
 import ray
 
 from verl import DataProto
@@ -53,10 +50,6 @@ class Critic(Worker):
         return data
 
 
-@pytest.mark.skipif(
-    importlib.util.find_spec("transfer_queue") is None,
-    reason="transfer_queue is not installed",
-)
 def test_colocated_workers():
     ray.init()
 
