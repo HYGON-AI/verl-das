@@ -489,6 +489,7 @@ def test_hcu_unit_suite_uses_the_pinned_image_environment():
     )
 
     assert 'source "${CI_DIR}/prepare_workspace.sh"' in script
+    assert 'PYTHONPATH="${REPO_ROOT}/tests${PYTHONPATH:+:${PYTHONPATH}}"' in script
     assert 'check_environment.py" runtime --require-gpus 8' in script
     assert 'touch "${run_dir}/ray-owned"' in script
     assert "python3 -m pytest -s -x" in script

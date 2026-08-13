@@ -18,6 +18,7 @@ touch "${run_dir}/ray-owned"
 
 # shellcheck disable=SC1091
 source "${CI_DIR}/prepare_workspace.sh"
+export PYTHONPATH="${REPO_ROOT}/tests${PYTHONPATH:+:${PYTHONPATH}}"
 python3 "${CI_DIR}/check_environment.py" runtime --require-gpus 8
 
 cd "${REPO_ROOT}"
