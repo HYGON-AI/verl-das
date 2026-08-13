@@ -302,6 +302,12 @@ jobs:
           submodules: false
           clean: true
 
+      - name: Install TransferQueue
+        env:
+          PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        shell: bash
+        run: python3 -m pip install --no-cache-dir "TransferQueue==0.1.9"
+
       - name: Run HCU unit tests
         shell: bash
         run: bash tests/hcu/pr/run_hcu_unit_tests.sh

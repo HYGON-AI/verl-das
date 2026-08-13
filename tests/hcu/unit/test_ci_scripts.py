@@ -496,6 +496,11 @@ def test_hcu_unit_suite_uses_the_pinned_image_environment():
     assert 'tests/utils/test_special_megatron_kl_loss_tp.py' in script
     assert "pip install" not in script
     assert "TransferQueue" not in script
+    assert "PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple" in workflow
+    assert (
+        'run: python3 -m pip install --no-cache-dir "TransferQueue==0.1.9"'
+        in workflow
+    )
     assert (
         "${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro"
         in workflow
@@ -510,11 +515,22 @@ def test_optional_mlflow_dependency_is_skipped_when_absent_from_the_pinned_image
     assert 'find_spec("mlflow")' in mlflow_test
 
 
-def test_hcu_patch_keeps_the_optional_transfer_queue_mock_picklable():
+def test_unit_suite_installs_optional_queue_dependency_in_the_workflow():
+    script = read_script("pr/run_hcu_unit_tests.sh")
+    workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
     patch = (ROOT / "hcu_verl" / "patch_init.py").read_text(encoding="utf-8")
 
-    assert "_make_optional_transfer_queue_mock_picklable" in patch
-    assert 'name.startswith("__") and name.endswith("__")' in patch
+    assert "PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple" in workflow
+    assert (
+        'run: python3 -m pip install --no-cache-dir "TransferQueue==0.1.9"'
+        in workflow
+    )
+    assert "TransferQueue" not in script
+    assert "optional_queue_compat" not in script
+    assert "_configure_optional_queue_mock" not in patch
+    assert not (HCU_TEST_DIR / "ci" / "optional_queue_compat.py").exists()
 
 
 def test_pr_vllm_case_is_a_bounded_real_training_step():
