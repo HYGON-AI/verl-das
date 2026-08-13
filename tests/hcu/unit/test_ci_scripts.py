@@ -501,6 +501,18 @@ def test_hcu_unit_suite_uses_the_pinned_image_environment():
     )
 
 
+def test_optional_dependencies_are_skipped_when_absent_from_the_pinned_image():
+    mlflow_test = (ROOT / "tests" / "utils" / "test_mlflow_key_sanitization.py").read_text(
+        encoding="utf-8"
+    )
+    transfer_queue_test = (
+        ROOT / "tests" / "single_controller" / "test_colocated_workers.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'find_spec("mlflow")' in mlflow_test
+    assert 'find_spec("transfer_queue")' in transfer_queue_test
+
+
 def test_pr_vllm_case_is_a_bounded_real_training_step():
     script = read_script("pr/run_vllm_grpo_1step.sh")
 
