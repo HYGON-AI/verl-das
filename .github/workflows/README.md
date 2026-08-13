@@ -70,11 +70,12 @@ the default branch's trusted `pull_request_target` workflow.
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
   `main`.
 - `PR Test (HCU)` runs the HCU-specific authorization and routing checks.
-  HCU runtime, HCU test, pinned VERL submodule, and PR-workflow changes run
-  three test layers from `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU tests,
+  Python changes run the repository HCU unit suite. HCU runtime, HCU test,
+  pinned VERL submodule, and PR-workflow changes run four test layers from
+  `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU tests, the HCU unit suite,
   fixed-submodule/device/patch/worker/Ray smoke checks, and a real one-step
-  Qwen2.5-0.5B GRPO FSDP/vLLM training case on eight cards. Other paths do not
-  occupy the HCU runner.
+  Qwen2.5-0.5B GRPO FSDP/vLLM training case on eight cards. Documentation-only
+  changes do not occupy the HCU runner.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   under `tests/hcu/nightly/bw1000/` run serially on the same eight-card runner.
   Manual runs can select one case.

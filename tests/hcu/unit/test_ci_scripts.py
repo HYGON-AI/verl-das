@@ -41,6 +41,7 @@ def test_all_shell_scripts_enable_strict_mode():
 def test_new_pr_shell_scripts_do_not_add_license_headers():
     scripts = (
         read_script("ci/restore_runner_permissions.sh"),
+        read_script("pr/run_hcu_unit_tests.sh"),
         read_script("pr/run_upstream_pr_tests.sh"),
         read_script("pr/run_vllm_grpo_1step.sh"),
     )
@@ -100,7 +101,7 @@ def test_runner_permission_restore_is_scoped_to_the_actions_workspace():
     nightly_workflow = (
         ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
     ).read_text(encoding="utf-8")
-    assert pr_workflow.count("bash tests/hcu/ci/restore_runner_permissions.sh") == 3
+    assert pr_workflow.count("bash tests/hcu/ci/restore_runner_permissions.sh") == 4
     assert nightly_workflow.count("bash tests/hcu/ci/restore_runner_permissions.sh") == 2
 
 
@@ -263,6 +264,7 @@ def test_ci_case_inventory_registers_requested_cases():
     ).read_text(encoding="utf-8")
 
     assert "pr_smoke:" in pr_cases
+    assert "pr_unit_tests:" in pr_cases
     assert "pr_upstream_tests:" in pr_cases
     assert "pr_vllm_grpo_1step:" in pr_cases
     assert "nightly_" not in pr_cases
@@ -304,9 +306,10 @@ def test_pr_hcu_runtime_trigger_tracks_hcu_owned_and_pinned_upstream_paths():
     workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
     )
-    classifier = workflow.split("          runtime=false", maxsplit=1)[1].split(
+    classification = workflow.split("          runtime=false", maxsplit=1)[1].split(
         '          echo "runtime=${runtime}"', maxsplit=1
     )[0]
+    classifier = classification.split("\n\n            case", maxsplit=1)[0]
 
     for related_path in (
         "hcu_verl/*",
@@ -322,6 +325,23 @@ def test_pr_hcu_runtime_trigger_tracks_hcu_owned_and_pinned_upstream_paths():
         "docs/*",
     ):
         assert unrelated_path not in classifier
+
+
+def test_pr_hcu_unit_trigger_is_consolidated_and_path_scoped():
+    workflow_path = ROOT / ".github" / "workflows" / "pr-test-hcu.yml"
+    workflow = workflow_path.read_text(encoding="utf-8")
+    classifier = workflow.split("          runtime=false", maxsplit=1)[1].split(
+        '          echo "runtime=${runtime}"', maxsplit=1
+    )[0]
+
+    assert not (ROOT / ".github" / "workflows" / "hcu_unit_tests.yaml").exists()
+    assert "unit=false" in classifier
+    assert ".github/workflows/hcu_unit_tests.yaml" in classifier
+    assert "examples/*|tests/special_sanity/*|tests/*_on_cpu.py" in classifier
+    assert 'echo "unit=${unit}"' in workflow
+    assert "hcu-unit-tests:" in workflow
+    assert "restore-after-unit-tests:" in workflow
+    assert "bash tests/hcu/pr/run_hcu_unit_tests.sh" in workflow
 
 
 def test_smoke_and_workflow_apply_patch_before_verl_execution():
@@ -361,7 +381,7 @@ def test_hcu_runtime_jobs_are_bound_to_bw1000_runners():
         ROOT / ".github" / "workflows" / "nightly-test-hcu.yml"
     ).read_text(encoding="utf-8")
 
-    assert pr_workflow.count("\n      - bw1000\n") == 10
+    assert pr_workflow.count("\n      - bw1000\n") == 12
     assert nightly_workflow.count("\n      - bw1000\n") == 6
     assert "VERL_HCU_ACCELERATOR" not in nightly_workflow
     assert "name: BW1000" not in pr_workflow
@@ -384,6 +404,7 @@ def test_ci_support_scripts_live_under_hcu_tests():
         HCU_TEST_DIR / "ci" / "restore_runner_permissions.sh",
         HCU_TEST_DIR / "ci" / "verify_submodules.py",
         HCU_TEST_DIR / "pr" / "run_hcu_smoke.sh",
+        HCU_TEST_DIR / "pr" / "run_hcu_unit_tests.sh",
         HCU_TEST_DIR / "pr" / "run_upstream_pr_tests.sh",
         HCU_TEST_DIR / "pr" / "run_vllm_grpo_1step.sh",
         HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_5step.sh",
@@ -461,6 +482,18 @@ def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
     assert "pinned upstream v0.8.0" in script
 
 
+def test_hcu_unit_suite_uses_the_pinned_image_environment():
+    script = read_script("pr/run_hcu_unit_tests.sh")
+
+    assert 'source "${CI_DIR}/prepare_workspace.sh"' in script
+    assert 'check_environment.py" runtime --require-gpus 8' in script
+    assert 'touch "${run_dir}/ray-owned"' in script
+    assert "python3 -m pytest -s -x" in script
+    assert 'tests/utils/test_special_megatron_kl_loss_tp.py' in script
+    assert "pip install" not in script
+    assert "TransferQueue" not in script
+
+
 def test_pr_vllm_case_is_a_bounded_real_training_step():
     script = read_script("pr/run_vllm_grpo_1step.sh")
 
@@ -474,18 +507,21 @@ def test_pr_vllm_case_is_a_bounded_real_training_step():
     assert 'touch "${run_dir}/ray-owned"' in script
 
 
-def test_pr_finish_requires_all_three_test_layers():
+def test_pr_finish_requires_all_four_test_layers():
     workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
         encoding="utf-8"
     )
 
     assert "upstream-pr-tests:" in workflow
+    assert "hcu-unit-tests:" in workflow
     assert "hcu-smoke:" in workflow
     assert "hcu-vllm-e2e:" in workflow
     assert "UPSTREAM_RESULT" in workflow
+    assert "UNIT_RESULT" in workflow
     assert "SMOKE_RESULT" in workflow
     assert "E2E_RESULT" in workflow
     assert '[[ "${UPSTREAM_RESULT}" == "success" ]]' in workflow
+    assert '[[ "${UNIT_RESULT}" == "success" ]]' in workflow
     assert '[[ "${E2E_RESULT}" == "success" ]]' in workflow
 
 
@@ -499,5 +535,5 @@ def test_container_jobs_initialize_submodules_after_safe_directories():
 
     assert "submodules: recursive" not in pr_workflow
     assert "submodules: recursive" not in nightly_workflow
-    assert pr_workflow.count("submodules: false") == 5
+    assert pr_workflow.count("submodules: false") == 6
     assert nightly_workflow.count("submodules: false") == 3

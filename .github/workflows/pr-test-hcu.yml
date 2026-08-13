@@ -31,6 +31,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       runtime: ${{ steps.changes.outputs.runtime }}
+      unit: ${{ steps.changes.outputs.unit }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -54,15 +55,31 @@ jobs:
           fi
 
           runtime=false
+          unit=false
           while IFS= read -r path; do
             case "${path}" in
-              hcu_verl/*|tests/hcu/*|third_party/verl|.gitmodules|.github/workflows/pr-test-hcu.yml)
+              hcu_verl/*|tests/hcu/*|third_party/verl|.gitmodules)
                 runtime=true
+                unit=true
+                ;;
+              .github/workflows/pr-test-hcu.yml|.github/workflows/hcu_unit_tests.yaml)
+                runtime=true
+                unit=true
+                ;;
+            esac
+
+            case "${path}" in
+              *.py)
+                case "${path}" in
+                  examples/*|tests/special_sanity/*|tests/*_on_cpu.py) ;;
+                  *) unit=true ;;
+                esac
                 ;;
             esac
           done < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
 
           echo "runtime=${runtime}" | tee -a "${GITHUB_OUTPUT}"
+          echo "unit=${unit}" | tee -a "${GITHUB_OUTPUT}"
 
   authorize-hcu:
     name: Authorize HCU execution
@@ -137,7 +154,9 @@ jobs:
     needs:
       - check-changes
       - authorize-hcu
-    if: needs.check-changes.outputs.runtime == 'true'
+    if: >-
+      needs.check-changes.outputs.runtime == 'true' ||
+      needs.check-changes.outputs.unit == 'true'
     runs-on:
       - self-hosted
       - bw1000
@@ -229,6 +248,95 @@ jobs:
         shell: bash
         run: bash tests/hcu/ci/restore_runner_permissions.sh
 
+  hcu-unit-tests:
+    name: HCU unit tests
+    needs:
+      - check-changes
+      - authorize-hcu
+      - validate-config
+      - upstream-pr-tests
+      - restore-after-upstream
+    if: >-
+      always() &&
+      needs.check-changes.outputs.unit == 'true' &&
+      needs.authorize-hcu.result == 'success' &&
+      needs.validate-config.result == 'success' &&
+      (needs.upstream-pr-tests.result == 'success' || needs.upstream-pr-tests.result == 'skipped') &&
+      (needs.restore-after-upstream.result == 'success' || needs.restore-after-upstream.result == 'skipped')
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 60
+    container:
+      image: ${{ vars.VERL_HCU_PR_IMAGE || 'invalid.local/verl-hcu-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      options: >-
+        --privileged
+        --device=/dev/kfd
+        --device=/dev/mkfd
+        --device=/dev/dri
+        --group-add video
+        --cap-add=SYS_PTRACE
+        --security-opt seccomp=unconfined
+        --shm-size=64g
+        --ipc=host
+      volumes:
+        - /opt/hyhal:/opt/hyhal:ro
+    env:
+      VERL_HCU_CI_RUN_ID: unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+      GLOG_minloglevel: 3
+      PYTHONWARNINGS: ignore
+      TORCH_CPP_LOG_LEVEL: fatal
+      TRANSFORMERS_VERBOSITY: error
+      VLLM_CUDART_SO_PATH: /opt/dtk/hip/lib/libgalaxyhip.so
+    steps:
+      - name: Checkout repository and fixed submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          clean: true
+
+      - name: Run HCU unit tests
+        shell: bash
+        run: bash tests/hcu/pr/run_hcu_unit_tests.sh
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: bash tests/hcu/ci/cleanup.sh
+
+      - name: Upload unit test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: verl-hcu-unit-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  restore-after-unit-tests:
+    name: Restore workspace after HCU unit tests
+    if: always() && needs.check-changes.outputs.unit == 'true'
+    needs:
+      - check-changes
+      - hcu-unit-tests
+    runs-on:
+      - self-hosted
+      - bw1000
+      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+    timeout-minutes: 5
+    env:
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+    steps:
+      - name: Restore runner workspace ownership
+        shell: bash
+        run: bash tests/hcu/ci/restore_runner_permissions.sh
+
   hcu-smoke:
     name: HCU smoke
     needs:
@@ -237,6 +345,8 @@ jobs:
       - validate-config
       - upstream-pr-tests
       - restore-after-upstream
+      - hcu-unit-tests
+      - restore-after-unit-tests
     if: needs.check-changes.outputs.runtime == 'true'
     runs-on:
       - self-hosted
@@ -401,6 +511,8 @@ jobs:
       - validate-config
       - upstream-pr-tests
       - restore-after-upstream
+      - hcu-unit-tests
+      - restore-after-unit-tests
       - hcu-smoke
       - restore-after-smoke
       - hcu-vllm-e2e
@@ -415,11 +527,14 @@ jobs:
         shell: bash
         env:
           RUNTIME_CHANGED: ${{ needs.check-changes.outputs.runtime }}
+          UNIT_CHANGED: ${{ needs.check-changes.outputs.unit }}
           CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
           AUTH_RESULT: ${{ needs.authorize-hcu.result }}
           CONFIG_RESULT: ${{ needs.validate-config.result }}
           UPSTREAM_RESULT: ${{ needs.upstream-pr-tests.result }}
           RESTORE_UPSTREAM_RESULT: ${{ needs.restore-after-upstream.result }}
+          UNIT_RESULT: ${{ needs.hcu-unit-tests.result }}
+          RESTORE_UNIT_RESULT: ${{ needs.restore-after-unit-tests.result }}
           SMOKE_RESULT: ${{ needs.hcu-smoke.result }}
           RESTORE_SMOKE_RESULT: ${{ needs.restore-after-smoke.result }}
           E2E_RESULT: ${{ needs.hcu-vllm-e2e.result }}
@@ -430,8 +545,21 @@ jobs:
           [[ "${CHECK_CHANGES_RESULT}" == "success" ]]
           [[ "${AUTH_RESULT}" == "success" ]]
 
-          if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
+          if [[ "${RUNTIME_CHANGED}" == "true" || "${UNIT_CHANGED}" == "true" ]]; then
             [[ "${CONFIG_RESULT}" == "success" ]]
+          else
+            [[ "${CONFIG_RESULT}" == "skipped" ]]
+          fi
+
+          if [[ "${UNIT_CHANGED}" == "true" ]]; then
+            [[ "${UNIT_RESULT}" == "success" ]]
+            [[ "${RESTORE_UNIT_RESULT}" == "success" ]]
+          else
+            [[ "${UNIT_RESULT}" == "skipped" ]]
+            [[ "${RESTORE_UNIT_RESULT}" == "skipped" ]]
+          fi
+
+          if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
             [[ "${UPSTREAM_RESULT}" == "success" ]]
             [[ "${RESTORE_UPSTREAM_RESULT}" == "success" ]]
             [[ "${SMOKE_RESULT}" == "success" ]]
@@ -439,7 +567,6 @@ jobs:
             [[ "${E2E_RESULT}" == "success" ]]
             [[ "${RESTORE_E2E_RESULT}" == "success" ]]
           else
-            [[ "${CONFIG_RESULT}" == "skipped" ]]
             [[ "${UPSTREAM_RESULT}" == "skipped" ]]
             [[ "${RESTORE_UPSTREAM_RESULT}" == "skipped" ]]
             [[ "${SMOKE_RESULT}" == "skipped" ]]
@@ -452,10 +579,13 @@ jobs:
             echo "## HCU PR gate"
             echo
             echo "- runtime changed: ${RUNTIME_CHANGED}"
+            echo "- unit-test paths changed: ${UNIT_CHANGED}"
             echo "- HCU authorization: ${AUTH_RESULT}"
             echo "- config validation: ${CONFIG_RESULT}"
             echo "- upstream sanity and CPU tests: ${UPSTREAM_RESULT}"
             echo "- restore after upstream tests: ${RESTORE_UPSTREAM_RESULT}"
+            echo "- HCU unit tests: ${UNIT_RESULT}"
+            echo "- restore after HCU unit tests: ${RESTORE_UNIT_RESULT}"
             echo "- HCU smoke: ${SMOKE_RESULT}"
             echo "- restore after HCU smoke: ${RESTORE_SMOKE_RESULT}"
             echo "- HCU vLLM GRPO one-step: ${E2E_RESULT}"
