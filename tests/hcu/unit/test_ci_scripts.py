@@ -484,6 +484,9 @@ def test_upstream_pr_suite_is_curated_and_documents_the_pinned_exclusion():
 
 def test_hcu_unit_suite_uses_the_pinned_image_environment():
     script = read_script("pr/run_hcu_unit_tests.sh")
+    workflow = (ROOT / ".github" / "workflows" / "pr-test-hcu.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert 'source "${CI_DIR}/prepare_workspace.sh"' in script
     assert 'check_environment.py" runtime --require-gpus 8' in script
@@ -492,6 +495,10 @@ def test_hcu_unit_suite_uses_the_pinned_image_environment():
     assert 'tests/utils/test_special_megatron_kl_loss_tp.py' in script
     assert "pip install" not in script
     assert "TransferQueue" not in script
+    assert (
+        "${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro"
+        in workflow
+    )
 
 
 def test_pr_vllm_case_is_a_bounded_real_training_step():

@@ -282,6 +282,7 @@ jobs:
         --ipc=host
       volumes:
         - /opt/hyhal:/opt/hyhal:ro
+        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
     env:
       VERL_HCU_CI_RUN_ID: unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ci-logs/unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
