@@ -95,7 +95,7 @@ jobs:
           tests/hcu/ci/check_environment.py config --profile nightly
 
   nightly-vllm:
-    name: Qwen2.5-0.5B GRPO vLLM (5-step)
+    name: deepseek-llm-7b-chat GRPO vLLM (5-step)
     needs:
       - validate-config
     if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
@@ -147,7 +147,7 @@ jobs:
             runtime --require-data-roots --require-gpus 8
           test -s "${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
           test -s "${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
-          test -d "${VERL_HCU_MODEL_ROOT}/qwen2.5/Qwen2.5-0.5B-Instruct"
+          test -d "${VERL_HCU_MODEL_ROOT}/deepseek-ai/deepseek-llm-7b-chat"
           test -f /opt/dtk/hip/lib/libgalaxyhip.so
 
           echo "main_sha=$(git rev-parse HEAD)"
@@ -167,7 +167,7 @@ jobs:
           assert torch.cuda.device_count() == 8
           PY
 
-          hf_model_path="${VERL_HCU_MODEL_ROOT}/qwen2.5" \
+          hf_model_path="${VERL_HCU_MODEL_ROOT}/deepseek-ai" \
             bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh \
             2>&1 | tee "${log_file}"
           python3 tests/hcu/ci/check_nightly_result.py \

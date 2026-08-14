@@ -422,7 +422,7 @@ def test_nightly_workflow_runs_validated_scripts_directly():
     assert "bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh" in workflow
     assert "bash tests/hcu/nightly/bw1000/run_sglang_off_policy_3step.sh" in workflow
     assert "run_nightly_case.sh" not in workflow
-    assert "Qwen2.5-0.5B GRPO vLLM (5-step)" in workflow
+    assert "deepseek-llm-7b-chat GRPO vLLM (5-step)" in workflow
     assert "Qwen3-0.6B SGLang off-policy (3-step)" in workflow
 
 

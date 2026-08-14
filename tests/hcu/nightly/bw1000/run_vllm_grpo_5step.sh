@@ -12,7 +12,7 @@ export VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so
 # ===================================== Data Config =====================================
 train_file=${data_path}/gsm8k/train.parquet
 test_file=${data_path}/gsm8k/test.parquet
-train_prompt_bsz=1024
+train_prompt_bsz=128
 max_prompt_length=$((128 * 1))
 max_response_length=$((256 * 1))
 
@@ -27,19 +27,19 @@ DATA_CONFIG=(
 )
 
 # ===================================== Actor Model & Optim Config =====================================
-train_prompt_mini_bsz=128
+train_prompt_mini_bsz=64
 use_kl_loss=True
 kl_loss_coef=0.001
 param_offload=True
 optimizer_offload=True
 
 ACTOR_CONFIG=(
-    actor_rollout_ref.model.path=${hf_model_path}/Qwen2.5-0.5B-Instruct
+    actor_rollout_ref.model.path=${hf_model_path}/deepseek-llm-7b-chat
     actor_rollout_ref.model.enable_gradient_checkpointing=True
     actor_rollout_ref.model.use_remove_padding=True
     actor_rollout_ref.actor.optim.lr=1e-6
     actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz}
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=8
     actor_rollout_ref.actor.use_kl_loss=${use_kl_loss}
     actor_rollout_ref.actor.kl_loss_coef=${kl_loss_coef}
     actor_rollout_ref.actor.kl_loss_type=low_var_kl
@@ -50,21 +50,20 @@ ACTOR_CONFIG=(
 
 # ===================================== Ref Config =====================================
 REF_CONFIG=(
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1
-    actor_rollout_ref.ref.fsdp_config.param_offload=${param_offload}
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16
+    actor_rollout_ref.ref.fsdp_config.param_offload=True
 )
 
 # ===================================== Rollout Config =====================================
 n_resp_per_prompt=5
-gen_tp=1
+gen_tp=2
 gpu_memory_utilization=0.3
 enable_sleep=False
 
 ROLLOUT_CONFIG=(
     actor_rollout_ref.rollout.name=vllm
     actor_rollout_ref.rollout.n=${n_resp_per_prompt}
-    actor_rollout_ref.rollout.max_model_len=256
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16
     actor_rollout_ref.rollout.tensor_model_parallel_size=${gen_tp}
     actor_rollout_ref.rollout.gpu_memory_utilization=${gpu_memory_utilization}
     actor_rollout_ref.rollout.free_cache_engine=${enable_sleep}
@@ -72,17 +71,14 @@ ROLLOUT_CONFIG=(
 )
 
 # ===================================== Algorithm Config =====================================
-adv_estimator=grpo
-kl_coef=0.0001
-
 ALGORITHM_CONFIG=(
-    algorithm.adv_estimator=${adv_estimator}
-    algorithm.kl_ctrl.kl_coef=${kl_coef}
+    algorithm.adv_estimator=grpo
+    algorithm.use_kl_in_reward=False
 )
 
 # ===================================== Trainer Config =====================================
-project_name='GRPO-Qwen2.5-0.5B-Instruct-BASE-GSM8K'
-exp_name='GRPO-Qwen2.5-0.5B-Instruct-BASE-FSDP-vLLM'
+project_name='GRPO-deepseek-llm-7b-chat-BASE-GSM8K'
+exp_name='GRPO-deepseek-llm-7b-chat-BASE-FSDP-vLLM'
 ngpus_per_node=8
 
 TRAINER_CONFIG=(
@@ -109,4 +105,4 @@ python3 -m verl.trainer.main_ppo \
     ${REF_CONFIG[@]} \
     ${ROLLOUT_CONFIG[@]} \
     ${ALGORITHM_CONFIG[@]} \
-    ${TRAINER_CONFIG[@]}
+    ${TRAINER_CONFIG[@]} \
