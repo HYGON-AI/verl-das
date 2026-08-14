@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
 import unittest
 from unittest.mock import patch
 
 from verl.utils.tracking import _MlflowLoggingAdapter
 
 
+@unittest.skipUnless(importlib.util.find_spec("mlflow"), "mlflow is not installed")
 class TestMlflowLoggingAdapter(unittest.TestCase):
     def test_sanitize_key_and_warning(self):
         """Test key sanitization for invalid characters and consecutive slashes with warnings."""
