@@ -37,28 +37,31 @@ All HCU CI support and test launchers live under `tests/hcu/`: shared helpers
 are in `tests/hcu/ci/`, PR smoke is in `tests/hcu/pr/`, and nightly launchers
 are in `tests/hcu/nightly/`.
 Nightly case inventories are grouped by accelerator label under
-`tests/hcu/nightly/<accelerator>/ci_cases.yaml`; the current cases are
-registered in `tests/hcu/nightly/bw1000/ci_cases.yaml`. The workflow uses the
-matching `bw1000` runner label for dispatch. A future accelerator is added as
-a separate directory and runner lane instead of mixing hardware baselines.
+`tests/hcu/nightly/<accelerator>/cases.json`; the current cases are registered
+in `tests/hcu/nightly/bw1000/cases.json`. That file is the source of the
+nightly job matrix, so adding a model requires only a launcher and one case
+entry. Manual runs accept `all`, an engine name, an exact case ID, or a
+comma-separated selection.
 
 The runner must provide Docker, `/opt/hyhal`, and the model and dataset roots
-configured above. Runtime dependencies belong in the pinned images; the
-workflows do not install the floating dependency from the product
-`requirements.txt`.
+configured above. Runtime dependencies belong in the pinned images. The only
+PR-time installation is the fixed `TransferQueue==0.1.9` package immediately
+before the HCU unit suite; the runtime lane still uses the original image
+environment.
 
-Every container test is followed by a host-side ownership restoration job
-before the next test layer starts. It validates that `GITHUB_WORKSPACE` is
-inside the runner work root, derives the runner UID/GID from `RUNNER_TEMP`, and
-uses the already-pinned HCU image to restore only that workspace. Keeping this
-as a separate job makes it run after `actions/checkout` post-job cleanup.
+HCU containers are started and removed explicitly inside each test job. The
+cleanup step stops only resources carrying the current CI run ID, restores the
+mounted checkout to the runner UID/GID while the container is still running,
+and then removes that exact container. This avoids separate permission-repair
+jobs and leaves `actions/checkout` post-job cleanup a runner-owned workspace.
 
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU
-execution is limited to same-repository branches opened by an owner,
-organization member, or repository collaborator. The HCU runner group must be
-restricted to this private repository, and users with write access must be
-treated as trusted to execute code on that runner.
+execution accepts same-repository branches plus forks opened by an owner,
+organization member, or repository collaborator; other fork sources are
+blocked before checkout. The HCU runner group must be restricted to this
+private repository, and these trusted contributors must be treated as able to
+execute code on that runner.
 
 During initial bootstrap, merge the reviewed workflow framework before relying
 on PR HCU checks. The first follow-up PR is the earliest change that can execute
@@ -66,19 +69,32 @@ the default branch's trusted `pull_request_target` workflow.
 
 ## Workflows
 
+PR HCU routing uses three explicit profiles from `tests/hcu/ci/plan_pr.py`:
+
+Pull requests targeting `main` are planned when they are opened, updated,
+reopened, or marked ready for review. Path selection deliberately lives in
+the planner instead of `on.pull_request_target.paths`: the plan and finish jobs
+must still report a stable required check for the `none` profile, while the
+HCU unit and runtime lanes are skipped.
+
+| Profile | Trigger | HCU lanes |
+| --- | --- | --- |
+| `none` | Documentation and other unrelated changes | None; finish reports the skip |
+| `unit` | Python changes outside examples, upstream sanity, and CPU-only tests | Unit |
+| `runtime` | `hcu_verl/`, `tests/hcu/`, the pinned VERL submodule, `.gitmodules`, or the PR HCU workflow | Unit and runtime |
+
 - `Quality Gate` reuses the organization-wide incremental checks from
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
   `main`.
-- `PR Test (HCU)` runs the HCU-specific authorization and routing checks.
-  Python changes run the repository HCU unit suite. HCU runtime, HCU test,
-  pinned VERL submodule, and PR-workflow changes run four test layers from
-  `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU tests, the HCU unit suite,
-  fixed-submodule/device/patch/worker/Ray smoke checks, and a real one-step
-  Qwen2.5-0.5B GRPO FSDP/vLLM training case on eight cards. Documentation-only
-  changes do not occupy the HCU runner.
+- `PR Test (HCU)` has four jobs: plan, unit, runtime, and finish. Python changes
+  run the HCU unit lane. HCU runtime, HCU test, pinned VERL submodule, and
+  PR-workflow changes run all four test layers from `tests/hcu/pr/`: 219
+  pinned-upstream sanity/CPU tests, the HCU unit suite, fixed-submodule/device/
+  patch/worker/Ray smoke checks, and a real one-step Qwen2.5-0.5B GRPO
+  FSDP/vLLM training case on eight cards. Documentation-only changes skip both
+  HCU test lanes.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
-  under `tests/hcu/nightly/bw1000/` run serially on the same eight-card runner.
-  Manual runs can select one case.
+  from the generated matrix run serially on the same eight-card runner.
 
 Model and dataset downloads are forbidden in both workflows. PR E2E and
 nightly tests use only the configured local roots and fail with a clear message

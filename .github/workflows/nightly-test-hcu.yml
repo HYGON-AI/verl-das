@@ -6,14 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       test_case:
-        description: HCU nightly case
+        description: all, engine name, case id, or comma-separated values
         required: true
         default: all
-        type: choice
-        options:
-          - all
-          - vllm
-          - sglang
+        type: string
 
 concurrency:
   group: nightly-test-hcu
@@ -36,17 +32,20 @@ env:
   TOKENIZERS_PARALLELISM: "false"
 
 jobs:
-  validate-config:
-    name: Validate HCU config
+  plan:
+    name: Plan nightly cases
     runs-on:
       - self-hosted
       - bw1000
       - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
-    timeout-minutes: 5
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.cases.outputs.matrix }}
+      selected: ${{ steps.cases.outputs.selected }}
     env:
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
     steps:
-      - name: Restore runner workspace ownership
+      - name: Restore existing workspace ownership
         shell: bash
         run: |
           set -euo pipefail
@@ -54,27 +53,21 @@ jobs:
           workspace="$(realpath -m -- "${GITHUB_WORKSPACE}")"
           runner_temp="$(realpath -m -- "${RUNNER_TEMP}")"
           work_root="$(dirname -- "${runner_temp}")"
-
           case "${workspace}" in
             "${work_root}"/*/*) ;;
             *)
-              echo "ERROR: refusing to change ownership outside the runner work root: ${workspace}" >&2
+              echo "ERROR: refusing to change ownership outside ${work_root}: ${workspace}" >&2
               exit 1
               ;;
           esac
 
           owner="$(stat -c '%u:%g' -- "${runner_temp}")"
           if [[ ! "${owner}" =~ ^[1-9][0-9]*:[0-9]+$ ]]; then
-            echo "ERROR: unsafe runner ownership derived from ${runner_temp}: ${owner}" >&2
+            echo "ERROR: unsafe runner ownership: ${owner}" >&2
             exit 1
           fi
-
           if [[ ! "${VERL_HCU_CI_IMAGE}" =~ @sha256:[0-9a-fA-F]{64}$ ]]; then
-            echo "ERROR: VERL_HCU_CI_IMAGE must use an immutable sha256 digest" >&2
-            exit 1
-          fi
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "ERROR: Docker is required to restore runner workspace ownership" >&2
+            echo "ERROR: VERL_HCU_VLLM_IMAGE must use an immutable sha256 digest" >&2
             exit 1
           fi
 
@@ -82,258 +75,109 @@ jobs:
             --volume "${workspace}:/workspace" \
             "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
-          echo "Restored ${workspace} ownership to ${owner}."
 
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
+          fetch-depth: 0
           submodules: false
+          clean: true
 
-      - name: Validate repository variables
+      - name: Validate nightly configuration
         run: >-
           "${HOME}/.local/bin/python3.10"
           tests/hcu/ci/check_environment.py config --profile nightly
 
-  nightly-vllm:
-    name: deepseek-llm-7b-chat GRPO vLLM (5-step)
+      - name: Build nightly matrix
+        id: cases
+        shell: bash
+        env:
+          SELECTED_CASE: ${{ inputs.test_case || 'all' }}
+        run: |
+          set -euo pipefail
+
+          matrix="$("${HOME}/.local/bin/python3.10" \
+            tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+          echo "selected=${SELECTED_CASE}" >> "${GITHUB_OUTPUT}"
+          echo "Nightly matrix: ${matrix}"
+
+  nightly:
+    name: ${{ matrix.name }}
     needs:
-      - validate-config
-    if: github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'vllm'
+      - plan
+    if: needs.plan.result == 'success'
     runs-on:
       - self-hosted
       - bw1000
       - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
-    timeout-minutes: 120
-    container:
-      image: ${{ vars.VERL_HCU_VLLM_IMAGE || 'invalid.local/verl-hcu-vllm-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
-      options: >-
-        --privileged
-        --device=/dev/kfd
-        --device=/dev/mkfd
-        --device=/dev/dri
-        --group-add video
-        --cap-add=SYS_PTRACE
-        --security-opt seccomp=unconfined
-        --shm-size=64g
-        --ipc=host
-      volumes:
-        - /opt/hyhal:/opt/hyhal:ro
-        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
-        - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
-      VERL_HCU_CI_RUN_ID: nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ci-logs/nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+      VERL_HCU_CI_CONTAINER_NAME: verl-hcu-nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_RUN_ID: nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ matrix.image_profile == 'vllm' && vars.VERL_HCU_VLLM_IMAGE || vars.VERL_HCU_SGLANG_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0
           submodules: false
           clean: true
 
-      - name: Run vLLM nightly case
+      - name: Start nightly container
         shell: bash
+        run: bash tests/hcu/ci/start_container.sh
+
+      - name: Run ${{ matrix.name }}
+        shell: bash
+        env:
+          CASE_ENGINE: ${{ matrix.engine }}
+          CASE_EXPECTED_STEP: ${{ matrix.expected_step }}
+          CASE_ID: ${{ matrix.id }}
+          CASE_MODEL_PARENT: ${{ matrix.model_parent }}
+          CASE_MODEL_PATH: ${{ matrix.model_path }}
+          CASE_REQUIRED_GPUS: ${{ matrix.required_gpus }}
+          CASE_REQUIRES_GALAXYHIP: ${{ matrix.requires_galaxyhip }}
+          CASE_SCRIPT: ${{ matrix.script }}
         run: |
           set -euo pipefail
 
-          run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
-          log_file="${VERL_HCU_CI_LOG_DIR}/vllm.log"
-          mkdir -p "${run_dir}/pids" "${VERL_HCU_CI_LOG_DIR}"
-          touch "${run_dir}/ray-owned"
+          bash tests/hcu/ci/exec_container.sh \
+            --env "CASE_ENGINE=${CASE_ENGINE}" \
+            --env "CASE_EXPECTED_STEP=${CASE_EXPECTED_STEP}" \
+            --env "CASE_ID=${CASE_ID}" \
+            --env "CASE_MODEL_PARENT=${CASE_MODEL_PARENT}" \
+            --env "CASE_MODEL_PATH=${CASE_MODEL_PATH}" \
+            --env "CASE_REQUIRED_GPUS=${CASE_REQUIRED_GPUS}" \
+            --env "CASE_REQUIRES_GALAXYHIP=${CASE_REQUIRES_GALAXYHIP}" \
+            --env "CASE_SCRIPT=${CASE_SCRIPT}" \
+            -- bash tests/hcu/nightly/run_case.sh
 
-          source tests/hcu/ci/prepare_workspace.sh
-          python3 tests/hcu/ci/check_environment.py \
-            runtime --require-data-roots --require-gpus 8
-          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
-          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
-          test -d "${VERL_HCU_MODEL_ROOT}/deepseek-ai/deepseek-llm-7b-chat"
-          test -f /opt/dtk/hip/lib/libgalaxyhip.so
-
-          echo "main_sha=$(git rev-parse HEAD)"
-          git submodule status
-          echo "ci_image=${VERL_HCU_CI_IMAGE}"
-          python3 - <<'PY'
-          import importlib.metadata
-          import sys
-
-          import torch
-
-          print(f"python={sys.version.split()[0]}")
-          print(f"torch={torch.__version__}")
-          for distribution in ("ray", "vllm", "transformers"):
-              print(f"{distribution}={importlib.metadata.version(distribution)}")
-          assert torch.cuda.is_available()
-          assert torch.cuda.device_count() == 8
-          PY
-
-          hf_model_path="${VERL_HCU_MODEL_ROOT}/deepseek-ai" \
-            bash tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh \
-            2>&1 | tee "${log_file}"
-          python3 tests/hcu/ci/check_nightly_result.py \
-            --log "${log_file}" \
-            --expected-step 5 \
-            --checkpoint-root "${GITHUB_WORKSPACE}/checkpoints"
-
-      - name: Cleanup
+      - name: Cleanup nightly container
         if: always()
         shell: bash
-        run: bash tests/hcu/ci/cleanup.sh
+        run: bash tests/hcu/ci/cleanup_container.sh
 
-      - name: Upload vLLM logs
+      - name: Upload nightly logs
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: verl-hcu-nightly-vllm-${{ github.run_id }}-${{ github.run_attempt }}
+          name: verl-hcu-nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
-
-
-  restore-after-vllm:
-    name: Restore workspace after nightly vLLM
-    if: always() && needs.nightly-vllm.result != 'skipped'
-    needs:
-      - nightly-vllm
-    runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
-    timeout-minutes: 5
-    env:
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
-    steps:
-      - name: Restore runner workspace ownership
-        shell: bash
-        run: bash tests/hcu/ci/restore_runner_permissions.sh
-
-  nightly-sglang:
-    name: Qwen3-0.6B SGLang off-policy (3-step)
-    needs:
-      - validate-config
-      - nightly-vllm
-      - restore-after-vllm
-    if: >-
-      always() &&
-      !cancelled() &&
-      needs.validate-config.result == 'success' &&
-      (github.event_name == 'schedule' || inputs.test_case == 'all' || inputs.test_case == 'sglang')
-    runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
-    timeout-minutes: 120
-    container:
-      image: ${{ vars.VERL_HCU_SGLANG_IMAGE || 'invalid.local/verl-hcu-sglang-unconfigured@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
-      options: >-
-        --privileged
-        --device=/dev/kfd
-        --device=/dev/mkfd
-        --device=/dev/dri
-        --group-add video
-        --cap-add=SYS_PTRACE
-        --security-opt seccomp=unconfined
-        --shm-size=64g
-        --ipc=host
-      volumes:
-        - /opt/hyhal:/opt/hyhal:ro
-        - ${{ vars.VERL_HCU_MODEL_ROOT }}:${{ vars.VERL_HCU_MODEL_ROOT }}:ro
-        - ${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:${{ vars.VERL_HCU_DATA_ROOT }}/gsm8k:ro
-    env:
-      VERL_HCU_CI_RUN_ID: nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ci-logs/nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
-    steps:
-      - name: Checkout repository and fixed submodules
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          submodules: false
-          clean: true
-
-      - name: Run SGLang nightly case
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          run_dir="${VERL_HCU_CI_TMP_ROOT}/${VERL_HCU_CI_RUN_ID}"
-          log_file="${VERL_HCU_CI_LOG_DIR}/sglang.log"
-          mkdir -p "${run_dir}/pids" "${VERL_HCU_CI_LOG_DIR}"
-          touch "${run_dir}/ray-owned"
-
-          source tests/hcu/ci/prepare_workspace.sh
-          python3 tests/hcu/ci/check_environment.py \
-            runtime --require-data-roots --require-gpus 8
-          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
-          test -s "${VERL_HCU_DATA_ROOT}/gsm8k/test.parquet"
-          test -d "${VERL_HCU_MODEL_ROOT}/qwen3/Qwen3-0.6B"
-
-          echo "main_sha=$(git rev-parse HEAD)"
-          git submodule status
-          echo "ci_image=${VERL_HCU_CI_IMAGE}"
-          python3 - <<'PY'
-          import importlib.metadata
-          import sys
-
-          import torch
-
-          print(f"python={sys.version.split()[0]}")
-          print(f"torch={torch.__version__}")
-          for distribution in ("ray", "sglang", "transformers"):
-              print(f"{distribution}={importlib.metadata.version(distribution)}")
-          assert torch.cuda.is_available()
-          assert torch.cuda.device_count() == 8
-          PY
-
-          hf_model_path="${VERL_HCU_MODEL_ROOT}/qwen3" \
-            bash tests/hcu/nightly/bw1000/run_sglang_off_policy_3step.sh \
-            2>&1 | tee "${log_file}"
-          python3 tests/hcu/ci/check_nightly_result.py \
-            --log "${log_file}" \
-            --expected-step 3 \
-            --checkpoint-root "${GITHUB_WORKSPACE}/checkpoints"
-
-      - name: Cleanup
-        if: always()
-        shell: bash
-        run: bash tests/hcu/ci/cleanup.sh
-
-      - name: Upload SGLang logs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: verl-hcu-nightly-sglang-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-logs/
-          if-no-files-found: error
-          retention-days: 14
-
-
-  restore-after-sglang:
-    name: Restore workspace after nightly SGLang
-    if: always() && needs.nightly-sglang.result != 'skipped'
-    needs:
-      - nightly-sglang
-    runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
-    timeout-minutes: 5
-    env:
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
-    steps:
-      - name: Restore runner workspace ownership
-        shell: bash
-        run: bash tests/hcu/ci/restore_runner_permissions.sh
 
   finish:
     name: Finish
     if: always()
     needs:
-      - validate-config
-      - nightly-vllm
-      - restore-after-vllm
-      - nightly-sglang
-      - restore-after-sglang
+      - plan
+      - nightly
     runs-on:
       - self-hosted
       - bw1000
@@ -343,45 +187,18 @@ jobs:
       - name: Evaluate nightly jobs
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          SELECTED_CASE: ${{ inputs.test_case || 'all' }}
-          CONFIG_RESULT: ${{ needs.validate-config.result }}
-          VLLM_RESULT: ${{ needs.nightly-vllm.result }}
-          RESTORE_VLLM_RESULT: ${{ needs.restore-after-vllm.result }}
-          SGLANG_RESULT: ${{ needs.nightly-sglang.result }}
-          RESTORE_SGLANG_RESULT: ${{ needs.restore-after-sglang.result }}
+          SELECTED_CASE: ${{ needs.plan.outputs.selected || inputs.test_case || 'all' }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          NIGHTLY_RESULT: ${{ needs.nightly.result }}
         run: |
           set -euo pipefail
 
-          [[ "${CONFIG_RESULT}" == "success" ]]
-
-          if [[ "${EVENT_NAME}" == "schedule" || "${SELECTED_CASE}" == "all" ]]; then
-            [[ "${VLLM_RESULT}" == "success" ]]
-            [[ "${RESTORE_VLLM_RESULT}" == "success" ]]
-            [[ "${SGLANG_RESULT}" == "success" ]]
-            [[ "${RESTORE_SGLANG_RESULT}" == "success" ]]
-          elif [[ "${SELECTED_CASE}" == "vllm" ]]; then
-            [[ "${VLLM_RESULT}" == "success" ]]
-            [[ "${RESTORE_VLLM_RESULT}" == "success" ]]
-            [[ "${SGLANG_RESULT}" == "skipped" ]]
-            [[ "${RESTORE_SGLANG_RESULT}" == "skipped" ]]
-          elif [[ "${SELECTED_CASE}" == "sglang" ]]; then
-            [[ "${VLLM_RESULT}" == "skipped" ]]
-            [[ "${RESTORE_VLLM_RESULT}" == "skipped" ]]
-            [[ "${SGLANG_RESULT}" == "success" ]]
-            [[ "${RESTORE_SGLANG_RESULT}" == "success" ]]
-          else
-            echo "Unsupported test case: ${SELECTED_CASE}" >&2
-            exit 1
-          fi
-
+          [[ "${PLAN_RESULT}" == "success" ]]
+          [[ "${NIGHTLY_RESULT}" == "success" ]]
           {
             echo "## HCU Nightly"
             echo
-            echo "- selected case: ${SELECTED_CASE}"
-            echo "- config validation: ${CONFIG_RESULT}"
-            echo "- vLLM: ${VLLM_RESULT}"
-            echo "- restore after vLLM: ${RESTORE_VLLM_RESULT}"
-            echo "- SGLang: ${SGLANG_RESULT}"
-            echo "- restore after SGLang: ${RESTORE_SGLANG_RESULT}"
+            echo "- selected cases: ${SELECTED_CASE}"
+            echo "- plan: ${PLAN_RESULT}"
+            echo "- model matrix: ${NIGHTLY_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"

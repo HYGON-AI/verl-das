@@ -23,14 +23,9 @@ if [[ "${log_root}" != /* ]]; then
     log_root="${REPO_ROOT}/${log_root}"
 fi
 environment_log="${log_root}/environment.log"
-pytest_log="${log_root}/pytest.log"
 mkdir -p "${run_dir}" "${log_root}"
 exec > >(tee -a "${environment_log}") 2>&1
 
-cleanup() {
-    bash "${CI_DIR}/cleanup.sh"
-}
-trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -174,13 +169,4 @@ for actor in actors:
 ray.shutdown()
 PY
 ray stop --force
-
-set +e
-python3 -m pytest "${REPO_ROOT}/tests/hcu/unit" -q 2>&1 | tee "${pytest_log}"
-pytest_status=${PIPESTATUS[0]}
-set -e
-if [[ ${pytest_status} -ne 0 ]]; then
-    echo "ERROR: HCU unit tests exited with status ${pytest_status}" >&2
-    exit "${pytest_status}"
-fi
 echo "HCU smoke checks passed."
