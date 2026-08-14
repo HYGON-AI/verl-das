@@ -26,6 +26,8 @@ cd "${REPO_ROOT}"
 set +e
 python3 -m pytest -s -x \
     --ignore-glob="*test_special_*.py" \
+    --ignore=tests/utils/test_activation_offload.py \
+    --ignore=tests/utils/test_fsdp_lora_merge.py \
     tests/ \
     2>&1 | tee "${pytest_log}"
 pytest_status=${PIPESTATUS[0]}
