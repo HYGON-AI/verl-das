@@ -261,9 +261,8 @@ def test_pr_workflow_has_four_clear_jobs_and_no_edit_trigger():
     assert "\n  pull_request:\n" not in workflow
     assert "      - edited\n" not in workflow
     assert "github.event.pull_request.head.repo.full_name" in jobs["plan"]
-    assert "github.event.pull_request.author_association" in jobs["plan"]
-    assert "OWNER|MEMBER|COLLABORATOR" in jobs["plan"]
-    assert "trusted repository contributors" in jobs["plan"]
+    assert "HCU execution authorized for" in jobs["plan"]
+    assert "github.event.pull_request.author_association" not in jobs["plan"]
     assert "github.event.pull_request.head.sha" in workflow
     assert "needs.plan.outputs.unit == 'true'" in jobs["unit"]
     assert "needs.plan.outputs.runtime == 'true'" in jobs["runtime"]

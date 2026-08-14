@@ -33,27 +33,16 @@ jobs:
     env:
       VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
     steps:
-      - name: Authorize trusted PR source
+      - name: Authorize PR source
         if: github.event_name == 'pull_request_target'
         shell: bash
         env:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_REPOSITORY: ${{ github.repository }}
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
         run: |
           set -euo pipefail
 
-          if [[ "${HEAD_REPOSITORY}" != "${BASE_REPOSITORY}" ]]; then
-            case "${AUTHOR_ASSOCIATION}" in
-              OWNER|MEMBER|COLLABORATOR) ;;
-              *)
-                echo "HCU execution is limited to trusted repository contributors." >&2
-                exit 1
-                ;;
-            esac
-          fi
-
-          echo "Trusted HCU execution authorized for ${AUTHOR_ASSOCIATION}."
+          echo "HCU execution authorized for ${HEAD_REPOSITORY} targeting ${BASE_REPOSITORY}."
 
       - name: Restore existing workspace ownership
         shell: bash

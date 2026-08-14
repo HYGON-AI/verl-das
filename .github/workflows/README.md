@@ -57,15 +57,13 @@ jobs and leaves `actions/checkout` post-job cleanup a runner-owned workspace.
 
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU
-execution accepts same-repository branches plus forks opened by an owner,
-organization member, or repository collaborator; other fork sources are
-blocked before checkout. The HCU runner group must be restricted to this
-private repository, and these trusted contributors must be treated as able to
-execute code on that runner.
+execution accepts both same-repository and fork pull requests. The HCU runner
+must remain a dedicated isolated CI machine because pull request contributors
+are treated as able to execute code on that runner.
 
 During initial bootstrap, merge the reviewed workflow framework before relying
 on PR HCU checks. The first follow-up PR is the earliest change that can execute
-the default branch's trusted `pull_request_target` workflow.
+the default branch's `pull_request_target` workflow.
 
 ## Workflows
 
