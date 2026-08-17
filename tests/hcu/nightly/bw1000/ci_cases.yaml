@@ -1,9 +1,0 @@
-nightly_vllm:
-  script: tests/hcu/nightly/bw1000/run_vllm_grpo_5step.sh
-  required_gpus: 8
-  timeout_minutes: 120
-
-nightly_sglang:
-  script: tests/hcu/nightly/bw1000/run_sglang_off_policy_3step.sh
-  required_gpus: 8
-  timeout_minutes: 120

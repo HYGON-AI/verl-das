@@ -25,10 +25,6 @@ training_log="${log_root}/vllm-grpo-1step.log"
 mkdir -p "${run_dir}" "${log_root}"
 exec > >(tee -a "${training_log}") 2>&1
 
-cleanup() {
-    bash "${CI_DIR}/cleanup.sh"
-}
-trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -54,7 +50,7 @@ export VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so
 # any process that did not originate from this CI run.
 touch "${run_dir}/ray-owned"
 
-# This is the HCU-sized equivalent of upstream's AMD ROCm FSDP/vLLM PR case:
+# This is the HCU-sized equivalent of the upstream FSDP/vLLM PR case:
 # a real GRPO rollout, reward calculation, backward pass and optimizer step.
 python3 -m verl.trainer.main_ppo \
     --config-path=config \
