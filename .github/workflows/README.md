@@ -67,30 +67,26 @@ the default branch's `pull_request_target` workflow.
 
 ## Workflows
 
-PR HCU routing uses three explicit profiles from `tests/hcu/ci/plan_pr.py`:
+Pull requests targeting `main` start the HCU workflow when they are opened,
+updated, reopened, or marked ready for review and change one of these paths:
 
-Pull requests targeting `main` are planned when they are opened, updated,
-reopened, or marked ready for review. Path selection deliberately lives in
-the planner instead of `on.pull_request_target.paths`: the plan and finish jobs
-must still report a stable required check for the `none` profile, while the
-HCU unit and runtime lanes are skipped.
+- `hcu_verl/**`
+- `tests/hcu/**`
+- `.github/workflows/pr-test-hcu.yml`
+- `.gitmodules`
 
-| Profile | Trigger | HCU lanes |
-| --- | --- | --- |
-| `none` | Documentation and other unrelated changes | None; finish reports the skip |
-| `unit` | Python changes outside examples, upstream sanity, and CPU-only tests | Unit |
-| `runtime` | `hcu_verl/`, `tests/hcu/`, the pinned VERL submodule, `.gitmodules`, or the PR HCU workflow | Unit and runtime |
+GitHub applies these filters before dispatching any HCU runner job. Matching
+pull requests always run the complete PR suite; unrelated changes do not start
+the HCU workflow.
 
 - `Quality Gate` reuses the organization-wide incremental checks from
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
   `main`.
-- `PR Test (HCU)` has four jobs: plan, unit, runtime, and finish. Python changes
-  run the HCU unit lane. HCU runtime, HCU test, pinned VERL submodule, and
-  PR-workflow changes run all four test layers from `tests/hcu/pr/`: 219
-  pinned-upstream sanity/CPU tests, the HCU unit suite, fixed-submodule/device/
-  patch/worker/Ray smoke checks, and a real one-step Qwen2.5-0.5B GRPO
-  FSDP/vLLM training case on eight cards. Documentation-only changes skip both
-  HCU test lanes.
+- `PR Test (HCU)` has three jobs: unit, runtime, and finish. Matching changes
+  run all four test layers from `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU
+  tests, the HCU unit suite, fixed-submodule/device/patch/worker/Ray smoke
+  checks, and a real one-step Qwen2.5-0.5B GRPO FSDP/vLLM training case on
+  eight cards.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   from the generated matrix run serially on the same eight-card runner.
 
@@ -98,7 +94,6 @@ Model and dataset downloads are forbidden in both workflows. PR E2E and
 nightly tests use only the configured local roots and fail with a clear message
 if an input is missing.
 
-After the workflows are stable, configure `Checks / All required checks` and
-`PR Test (HCU) / Finish` as required branch-protection checks. The HCU finish
-job evaluates every HCU-specific upstream job and prevents skipped runtime
-checks from being treated as success.
+The HCU finish job evaluates both HCU test jobs and fails unless both complete
+successfully. If it is later configured as a required branch-protection check,
+review how GitHub treats path-filtered workflows before enabling that rule.

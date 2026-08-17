@@ -252,22 +252,29 @@ def test_vllm_case_uses_validated_no_sleep_settings():
     assert "+actor_rollout_ref.rollout.enable_sleep_mode=${enable_sleep}" in vllm
 
 
-def test_pr_workflow_has_four_clear_jobs_and_no_edit_trigger():
+def test_pr_workflow_uses_direct_path_filters_and_three_jobs():
     workflow = read_workflow("pr-test-hcu.yml")
     jobs = workflow_job_blocks(workflow)
 
-    assert list(jobs) == ["plan", "unit", "runtime", "finish"]
+    assert list(jobs) == ["unit", "runtime", "finish"]
     assert "pull_request_target:" in workflow
     assert "\n  pull_request:\n" not in workflow
     assert "      - edited\n" not in workflow
-    assert "github.event.pull_request.head.repo.full_name" in jobs["plan"]
-    assert "HCU execution authorized for" in jobs["plan"]
-    assert "github.event.pull_request.author_association" not in jobs["plan"]
+    for path in (
+        '      - "hcu_verl/**"',
+        '      - "tests/hcu/**"',
+        '      - ".github/workflows/pr-test-hcu.yml"',
+        '      - ".gitmodules"',
+    ):
+        assert path in workflow
+    assert "github.event.pull_request.head.repo.full_name" in jobs["unit"]
+    assert "HCU execution authorized for" in jobs["unit"]
+    assert "github.event.pull_request.author_association" not in jobs["unit"]
     assert "github.event.pull_request.head.sha" in workflow
-    assert "needs.plan.outputs.unit == 'true'" in jobs["unit"]
-    assert "needs.plan.outputs.runtime == 'true'" in jobs["runtime"]
-    assert "needs.unit.result == 'success'" in jobs["runtime"]
-    assert "tests/hcu/ci/plan_pr.py" in jobs["plan"]
+    assert "needs:\n      - unit" in jobs["runtime"]
+    assert "needs.plan" not in workflow
+    assert "tests/hcu/ci/plan_pr.py" not in workflow
+    assert not (ROOT / ".github" / "workflows" / "hcu_unit_tests.yaml").exists()
 
 
 def test_pr_change_routing_preserves_runtime_and_unit_scopes():
@@ -299,7 +306,6 @@ def test_pr_change_routing_preserves_runtime_and_unit_scopes():
         assert runtime["profile"] == "runtime", related_path
         assert runtime["unit"] is True, related_path
         assert runtime["runtime"] is True, related_path
-    assert not (ROOT / ".github" / "workflows" / "hcu_unit_tests.yaml").exists()
 
 
 def test_pr_lanes_preserve_all_four_test_layers():
@@ -475,17 +481,16 @@ def test_pr_vllm_case_remains_a_bounded_real_training_step():
     assert "trainer.total_training_steps=1" in script
 
 
-def test_finish_jobs_keep_strict_skip_and_success_semantics():
+def test_finish_jobs_keep_strict_success_semantics():
     pr_finish = workflow_job_blocks(read_workflow("pr-test-hcu.yml"))["finish"]
     nightly_finish = workflow_job_blocks(read_workflow("nightly-test-hcu.yml"))[
         "finish"
     ]
 
-    assert '[[ "${PLAN_RESULT}" == "success" ]]' in pr_finish
     assert '[[ "${UNIT_RESULT}" == "success" ]]' in pr_finish
-    assert '[[ "${UNIT_RESULT}" == "skipped" ]]' in pr_finish
     assert '[[ "${RUNTIME_RESULT}" == "success" ]]' in pr_finish
-    assert '[[ "${RUNTIME_RESULT}" == "skipped" ]]' in pr_finish
+    assert "PLAN_RESULT" not in pr_finish
+    assert '== "skipped"' not in pr_finish
     assert '[[ "${PLAN_RESULT}" == "success" ]]' in nightly_finish
     assert '[[ "${NIGHTLY_RESULT}" == "success" ]]' in nightly_finish
 
