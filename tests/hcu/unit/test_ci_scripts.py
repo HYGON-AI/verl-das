@@ -157,8 +157,10 @@ def test_nightly_case_manifest_is_the_matrix_source_of_truth():
 
     assert [case["engine"] for case in cases] == ["vllm", "sglang"]
     assert [case["expected_step"] for case in cases] == [5, 3]
-    assert cases[0]["model_parent"] == "deepseek"
-    assert cases[0]["model_path"] == "deepseek/deepseek-llm-7b-chat"
+    assert cases[0]["model_parent"] == "vllm-optest-models/deepseek-ai"
+    assert cases[0]["model_path"] == (
+        "vllm-optest-models/deepseek-ai/deepseek-llm-7b-chat"
+    )
     assert planner.build_matrix("all")["include"] == cases
     assert [case["engine"] for case in planner.build_matrix("vllm")["include"]] == [
         "vllm"
