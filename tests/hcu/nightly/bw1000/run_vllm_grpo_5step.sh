@@ -66,6 +66,7 @@ enable_sleep=False
 ROLLOUT_CONFIG=(
     actor_rollout_ref.rollout.name=vllm
     actor_rollout_ref.rollout.n=${n_resp_per_prompt}
+    actor_rollout_ref.rollout.enforce_eager=True
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
     actor_rollout_ref.rollout.tensor_model_parallel_size=${gen_tp}
