@@ -6,11 +6,23 @@ do
     fi
 done
 
+# These variables should be modified
+export NET_TYPE="" # please choose one of {mlnx, shca}.
+PORT="" # The port which you set in your docker when using multinode
+HOST_FILE=""
+DATA_PATH=""
+HF_MODEL_PATH=""
+MCORE_MODEL_PATH=""
+PROFILING="" # If you want to profiling, please choose one of {torch}
+
+
+# These variables should not be modified
 CURRENT_DIR=$( cd "$( dirname "$0" )" && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 SAVE_CKPT_PATH=${VERL_PATH}/examples/on_policy_distillation_trainer
 LOG_PATH=${model_name}-`date +%F-%H%M`.log
 export PYTHONWARNINGS=ignore
+export VEOMNI_VERBOSITY=FATAL
 export TRANSFORMERS_VERBOSITY=error
 export VERL_PATH=${VERL_PATH}
 export TENSORBOARD_DIR=${SAVE_CKPT_PATH}/tensorboard
@@ -44,6 +56,7 @@ env_args=(
     -x HYHAL_PATH
     -x ROCM_PATH
     -x PYTHONWARNINGS
+    -x VEOMNI_VERBOSITY
     -x TRANSFORMERS_VERBOSITY
     -x VLLM_CUDART_SO_PATH
 )
@@ -59,14 +72,6 @@ if [[ -z "$model_name" ]]; then
     exit 1
 fi
 
-# These variables should be modified
-export NET_TYPE="" # please choose one of {mlnx, shca}.
-PORT="" # The port which you set in your docker
-HOST_FILE=""
-DATA_PATH=""
-HF_MODEL_PATH=""
-MCORE_MODEL_PATH=""
-PROFILING="" # If you want to profiling, please choose one of {torch}
 
 # pstart ray
 head_ip=$(awk '{print $1}' ${HOST_FILE} | head -n 1)

@@ -16,7 +16,7 @@ do
     fi
 done
 
-# dependency: vllm==0.18.1, transformers==5.7.0
+# dependency: vllm==0.25.1, transformers==5.12.1
 CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )
@@ -87,7 +87,6 @@ ROLLOUT_CONFIG=(
     actor_rollout_ref.rollout.enable_chunked_prefill=False
     actor_rollout_ref.rollout.enforce_eager=False
     actor_rollout_ref.rollout.enable_prefix_caching=False
-    +actor_rollout_ref.rollout.engine_kwargs.vllm.mm_processor_cache_gb=0
     actor_rollout_ref.rollout.free_cache_engine=${enable_sleep}
     +actor_rollout_ref.rollout.enable_sleep_mode=${enable_sleep}
 )

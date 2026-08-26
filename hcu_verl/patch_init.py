@@ -19,10 +19,10 @@ import os
 
 from packaging.version import parse as parse_version
 
-from .protocol import DataProto
-from .utils.device import is_npu_available, is_cuda_available
-from .utils.import_utils import import_external_libs
-from .utils.logging_utils import set_basic_config
+from verl.protocol import DataProto
+from verl.utils.device import is_npu_available, is_cuda_available
+from verl.utils.import_utils import import_external_libs
+from verl.utils.logging_utils import set_basic_config
 
 version_folder = os.path.dirname(os.path.join(os.path.abspath(__file__)))
 
@@ -40,6 +40,30 @@ modules = os.getenv("VERL_USE_EXTERNAL_MODULES", "")
 if modules:
     modules = modules.split(",")
     import_external_libs(modules)
+
+
+# Auto-discover plugins via setuptools entry_points.
+# Controlled by VERL_USE_EXTERNAL_PLUGINS:
+#   "auto"  — load all entry_points in the "verl.plugins" group (default)
+#   "none"  — disable entry_point discovery entirely
+#   "pkg1,pkg2" — only load the named entry_points
+_plugins_policy = os.getenv("VERL_USE_EXTERNAL_PLUGINS", "auto").strip().lower()
+if _plugins_policy != "none":
+    from importlib.metadata import entry_points as _entry_points
+
+    _discovered = _entry_points(group="verl.plugins")
+    if _plugins_policy == "auto":
+        _allowed = None
+    else:
+        _allowed = {name.strip() for name in _plugins_policy.split(",") if name.strip()}
+
+    for _ep in _discovered:
+        if _allowed is not None and _ep.name not in _allowed:
+            continue
+        try:
+            _ep.load()
+        except Exception as _e:
+            logging.getLogger(__name__).debug("Failed to load plugin '%s': %s", _ep.name, _e)
 
 
 if os.getenv("VERL_USE_MODELSCOPE", "False").lower() == "true":

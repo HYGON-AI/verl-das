@@ -18,20 +18,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 ADAPTOR = ROOT / "hcu_verl" / "adaptor" / "verl_adaptor.py"
 EXPECTED_PATCH_TARGETS = {
+    "verl.plugin.platform.platform_rocm.PlatformROCm.rollout_env_vars",
     "verl.trainer.constants_ppo.PPO_RAY_RUNTIME_ENV",
     "verl.utils.flops_counter._DEVICE_FLOPS",
-    "verl.utils.megatron_utils.get_model",
-    "verl.workers.rollout.vllm_rollout.utils.get_device_uuid",
     (
         "megatron.core.dist_checkpointing.strategies.filesystem_async."
         "FileSystemWriterAsync.preload_tensors"
     ),
 }
 EXPECTED_IMPLEMENTATIONS = {
+    "hcu_verl/plugin/platform/platform_rocm.py",
     "hcu_verl/trainer/constants_ppo.py",
     "hcu_verl/utils/flops_counter.py",
-    "hcu_verl/utils/megatron_utils.py",
-    "hcu_verl/workers/rollout/vllm_rollout/utils.py",
     "hcu_verl/core/dist_checkpointing/strategies/filesystem_async.py",
 }
 

@@ -1,7 +1,7 @@
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 # Copyright 2023-2024 SGLang Team
 # Copyright 2025 ModelBest Inc. and/or its affiliates
-# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,10 +97,10 @@ def test_group_mean_std_default_device_no_force_env(monkeypatch):
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     # Force device selection to CPU even if CUDA is available on the test machine.
-    import verl.utils.device as device_mod
+    # Must patch the reference in groupwise module directly (it uses `from ... import get_device_name`).
+    import verl.utils.groupwise as groupwise_mod
 
-    monkeypatch.setattr(device_mod, "is_cuda_available", False)
-    monkeypatch.setattr(device_mod, "is_npu_available", False)
+    monkeypatch.setattr(groupwise_mod, "get_device_name", lambda: "cpu")
 
     scores = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
     gidx = torch.tensor([0, 1, 0], dtype=torch.long)

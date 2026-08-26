@@ -20,9 +20,9 @@ This product is derived from and contains modifications to:
   Copyright 2023-2024 Bytedance Ltd. and/or its affiliates
   Licensed under the Apache License, Version 2.0
   Source:   https://github.com/verl-project/verl
-  Baseline: branch release/v0.8.0
-            tag    v0.8.0
-            commit 7aed6b230776f963fa09509c10d9c3a767d1102c
+  Baseline: branch release/v0.9.0
+            tag    v0.9.0
+            commit 483b8a009ba3a97563edee3a19887e4862b8094a
 
 HCU adaptations, bug fixes, and additional features under `hcu_verl/`
 are original contributions by Hygon Information Technology Co., Ltd.,
