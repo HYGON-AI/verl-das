@@ -16,8 +16,6 @@ concurrency:
 jobs:
   gate:
     name: Checks
-    uses: HYGON-AI/quality-gate/.github/workflows/pr-quality-gate.yml@v2.0.1
-    with:
-      runner_labels: '["self-hosted","Linux","X64","hcu","bw1000","bmz18"]'
+    uses: HYGON-AI/quality-gate/.github/workflows/pr-quality-gate.yml@v2.0.3
     permissions:
       contents: read
