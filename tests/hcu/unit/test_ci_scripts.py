@@ -361,19 +361,33 @@ def test_workflows_validate_only_their_own_configuration_profile():
     pr_workflow = read_workflow("pr-test-hcu.yml")
     nightly_workflow = read_workflow("nightly-test-hcu.yml")
 
-    assert '"${HOME}/.local/bin/python3.10"' in pr_workflow
-    assert '"${HOME}/.local/bin/python3.10"' in nightly_workflow
+    setup_python = "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+    assert setup_python in pr_workflow
+    assert setup_python in nightly_workflow
+    assert "python-version: '3.10'" in pr_workflow
+    assert "python-version: '3.10'" in nightly_workflow
     assert "check_environment.py config --profile pr" in pr_workflow
     assert "check_environment.py config --profile nightly" in nightly_workflow
 
 
-def test_every_hcu_workflow_job_is_bound_to_the_local_runner():
-    for name in ("pr-test-hcu.yml", "nightly-test-hcu.yml"):
+def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
+    expected_hcu_jobs = {
+        "pr-test-hcu.yml": ("unit", "runtime"),
+        "nightly-test-hcu.yml": ("nightly",),
+    }
+
+    for name, hcu_jobs in expected_hcu_jobs.items():
         workflow = read_workflow(name)
         jobs = workflow_job_blocks(workflow)
 
         assert "ubuntu-latest" not in workflow
-        for job_name, block in jobs.items():
+        for job_name in ("plan", "finish"):
+            block = jobs[job_name]
+            assert "group: ci-general" in block
+            assert "labels: [self-hosted, ci]" in block
+
+        for job_name in hcu_jobs:
+            block = jobs[job_name]
             assert "- self-hosted" in block, job_name
             assert "- bw1000" in block, job_name
             assert "VERL_HCU_CI_RUNNER_LABEL" in block, job_name
@@ -384,6 +398,7 @@ def test_actionlint_knows_the_local_runner_label():
 
     assert "self-hosted-runner:" in config
     assert "- bw1000" in config
+    assert "- ci" in config
 
 
 def test_ci_support_scripts_and_case_launchers_live_under_hcu_tests():

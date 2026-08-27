@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
     - bw1000
+    - ci
