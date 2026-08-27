@@ -151,6 +151,26 @@ def test_workflows_use_explicit_containers_without_restore_jobs():
     assert not (HCU_TEST_DIR / "ci" / "restore_runner_permissions.sh").exists()
 
 
+def test_plan_jobs_restore_workspace_ownership_before_checkout():
+    workflows = {
+        "pr-test-hcu.yml": "VERL_HCU_PR_IMAGE",
+        "nightly-test-hcu.yml": "VERL_HCU_VLLM_IMAGE",
+    }
+
+    for name, image_variable in workflows.items():
+        plan = workflow_job_blocks(read_workflow(name))["plan"]
+        restore = plan.index("- name: Restore existing workspace ownership")
+        checkout = plan.index("- name: Checkout repository")
+
+        assert restore < checkout
+        assert f"${{{{ vars.{image_variable} }}}}" in plan
+        assert '"${work_root}"/*/*' in plan
+        assert "@sha256:" in plan
+        assert "docker run --rm" in plan
+        assert "--user root" in plan
+        assert 'chown -R -- "${owner}" /workspace' in plan
+
+
 def test_nightly_case_manifest_is_the_matrix_source_of_truth():
     planner = load_nightly_planner()
     cases = planner.load_cases()
