@@ -284,6 +284,11 @@ def test_pr_workflow_has_four_clear_jobs_and_no_edit_trigger():
     assert "HCU execution authorized for" in jobs["plan"]
     assert "github.event.pull_request.author_association" not in jobs["plan"]
     assert "github.event.pull_request.head.sha" in workflow
+    assert "BASE_REPOSITORY: ${{ github.repository }}" in jobs["plan"]
+    assert 'git cat-file -e "${BASE_SHA}^{commit}"' in jobs["plan"]
+    assert '"${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"' in jobs[
+        "plan"
+    ]
     assert "needs.plan.outputs.unit == 'true'" in jobs["unit"]
     assert "needs.plan.outputs.runtime == 'true'" in jobs["runtime"]
     assert "needs.unit.result == 'success'" in jobs["runtime"]

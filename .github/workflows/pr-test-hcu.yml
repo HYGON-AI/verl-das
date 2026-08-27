@@ -93,6 +93,7 @@ jobs:
         id: changes
         shell: bash
         env:
+          BASE_REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -100,6 +101,10 @@ jobs:
 
           if [[ -z "${BASE_SHA}" ]]; then
             BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
+          fi
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 \
+              "${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"
           fi
           git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" |
             python tests/hcu/ci/plan_pr.py \
