@@ -23,7 +23,7 @@ jobs:
     name: Plan HCU tests
     runs-on:
       group: ci-general
-      labels: [self-hosted, ci]
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 10
     outputs:
       profile: ${{ steps.changes.outputs.profile }}
@@ -226,7 +226,7 @@ jobs:
       - runtime
     runs-on:
       group: ci-general
-      labels: [self-hosted, ci]
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 5
     steps:
       - name: Evaluate required jobs

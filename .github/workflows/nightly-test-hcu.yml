@@ -35,7 +35,7 @@ jobs:
     name: Plan nightly cases
     runs-on:
       group: ci-general
-      labels: [self-hosted, ci]
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.cases.outputs.matrix }}
@@ -149,7 +149,7 @@ jobs:
       - nightly
     runs-on:
       group: ci-general
-      labels: [self-hosted, ci]
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 5
     steps:
       - name: Evaluate nightly jobs

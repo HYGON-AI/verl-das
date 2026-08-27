@@ -384,7 +384,7 @@ def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
         for job_name in ("plan", "finish"):
             block = jobs[job_name]
             assert "group: ci-general" in block
-            assert "labels: [self-hosted, ci]" in block
+            assert "labels: [self-hosted, ci, bw1100]" in block
 
         for job_name in hcu_jobs:
             block = jobs[job_name]
