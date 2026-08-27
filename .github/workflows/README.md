@@ -9,7 +9,6 @@ Configure these variables before enabling the workflows:
 
 | Variable | Purpose |
 | --- | --- |
-| `VERL_HCU_CI_RUNNER_LABEL` | Custom label of the self-hosted HCU runner |
 | `VERL_HCU_PR_IMAGE` | HCU image used by all PR test layers |
 | `VERL_HCU_VLLM_IMAGE` | HCU image used by the vLLM nightly job |
 | `VERL_HCU_SGLANG_IMAGE` | HCU image used by the SGLang nightly job |

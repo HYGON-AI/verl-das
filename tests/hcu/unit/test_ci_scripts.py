@@ -388,9 +388,8 @@ def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
 
         for job_name in hcu_jobs:
             block = jobs[job_name]
-            assert "- self-hosted" in block, job_name
-            assert "- bw1000" in block, job_name
-            assert "VERL_HCU_CI_RUNNER_LABEL" in block, job_name
+            assert "group: ci-general" in block, job_name
+            assert "labels: [self-hosted, ci, bw1100]" in block, job_name
 
 
 def test_actionlint_knows_the_local_runner_label():
@@ -398,6 +397,7 @@ def test_actionlint_knows_the_local_runner_label():
 
     assert "self-hosted-runner:" in config
     assert "- bw1000" in config
+    assert "- bw1100" in config
     assert "- ci" in config
 
 

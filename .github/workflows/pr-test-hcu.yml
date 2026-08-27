@@ -74,7 +74,6 @@ jobs:
       - name: Validate HCU configuration
         if: steps.changes.outputs.runtime == 'true' || steps.changes.outputs.unit == 'true'
         env:
-          VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
           VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
           VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
           VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
@@ -88,9 +87,8 @@ jobs:
       - plan
     if: needs.plan.outputs.unit == 'true'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 90
     env:
       VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
@@ -161,9 +159,8 @@ jobs:
       - unit
     if: needs.plan.outputs.runtime == 'true' && needs.unit.result == 'success'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 60
     env:
       VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-runtime-${{ github.run_id }}-${{ github.run_attempt }}

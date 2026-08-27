@@ -19,7 +19,6 @@ permissions:
   contents: read
 
 env:
-  VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
   VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
   VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
@@ -79,9 +78,8 @@ jobs:
       - plan
     if: needs.plan.result == 'success'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
