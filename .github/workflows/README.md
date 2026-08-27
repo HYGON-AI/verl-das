@@ -21,15 +21,20 @@ All image values must use an immutable digest:
 registry.example.com/project/image@sha256:<64 hexadecimal characters>
 ```
 
-The PR configuration check requires the runner label, PR image, model root,
-and dataset root because the PR gate includes a real one-step training case.
-Nightly configuration additionally requires the vLLM and SGLang images plus
-the model and dataset roots.
+The PR configuration check requires the PR image, model root, and dataset
+root because the PR gate includes a real one-step training case. Nightly
+configuration additionally requires the vLLM and SGLang images plus the model
+and dataset roots.
 
-For the current BW1000 cases, set `VERL_HCU_DATA_ROOT=/home/github/tly` when
-the complete dataset is stored in `/home/github/tly/gsm8k`. The workflow
-mounts only `${VERL_HCU_DATA_ROOT}/gsm8k` into the container and keeps it
-read-only.
+All HCU CI assets use the runner-shared directory:
+
+```text
+VERL_HCU_MODEL_ROOT=/ci_public/verl-das/models
+VERL_HCU_DATA_ROOT=/ci_public/verl-das/data
+```
+
+The workflow mounts the model root and only
+`${VERL_HCU_DATA_ROOT}/gsm8k` into the container, both read-only.
 
 The current PR smoke and nightly model baselines run on an eight-card runner.
 All HCU CI support and test launchers live under `tests/hcu/`: shared helpers

@@ -401,6 +401,16 @@ def test_actionlint_knows_the_local_runner_label():
     assert "- ci" in config
 
 
+def test_ci_readme_uses_shared_asset_roots():
+    readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "VERL_HCU_MODEL_ROOT=/ci_public/verl-das/models" in readme
+    assert "VERL_HCU_DATA_ROOT=/ci_public/verl-das/data" in readme
+    assert "/home/github/tly" not in readme
+
+
 def test_ci_support_scripts_and_case_launchers_live_under_hcu_tests():
     expected = (
         HCU_TEST_DIR / "ci" / "check_environment.py",
