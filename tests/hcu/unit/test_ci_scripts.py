@@ -151,6 +151,26 @@ def test_workflows_use_explicit_containers_without_restore_jobs():
     assert not (HCU_TEST_DIR / "ci" / "restore_runner_permissions.sh").exists()
 
 
+def test_plan_jobs_restore_workspace_ownership_before_checkout():
+    workflows = {
+        "pr-test-hcu.yml": "VERL_HCU_PR_IMAGE",
+        "nightly-test-hcu.yml": "VERL_HCU_VLLM_IMAGE",
+    }
+
+    for name, image_variable in workflows.items():
+        plan = workflow_job_blocks(read_workflow(name))["plan"]
+        restore = plan.index("- name: Restore existing workspace ownership")
+        checkout = plan.index("- name: Checkout repository")
+
+        assert restore < checkout
+        assert f"${{{{ vars.{image_variable} }}}}" in plan
+        assert '"${work_root}"/*/*' in plan
+        assert "@sha256:" in plan
+        assert "docker run --rm" in plan
+        assert "--user root" in plan
+        assert 'chown -R -- "${owner}" /workspace' in plan
+
+
 def test_nightly_case_manifest_is_the_matrix_source_of_truth():
     planner = load_nightly_planner()
     cases = planner.load_cases()
@@ -219,6 +239,11 @@ def test_pr_workflow_has_four_clear_jobs_and_no_edit_trigger():
     assert "HCU execution authorized for" in jobs["plan"]
     assert "github.event.pull_request.author_association" not in jobs["plan"]
     assert "github.event.pull_request.head.sha" in workflow
+    assert "BASE_REPOSITORY: ${{ github.repository }}" in jobs["plan"]
+    assert 'git cat-file -e "${BASE_SHA}^{commit}"' in jobs["plan"]
+    assert '"${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"' in jobs[
+        "plan"
+    ]
     assert "needs.plan.outputs.unit == 'true'" in jobs["unit"]
     assert "needs.plan.outputs.runtime == 'true'" in jobs["runtime"]
     assert "needs.unit.result == 'success'" in jobs["runtime"]
@@ -316,22 +341,35 @@ def test_workflows_validate_only_their_own_configuration_profile():
     pr_workflow = read_workflow("pr-test-hcu.yml")
     nightly_workflow = read_workflow("nightly-test-hcu.yml")
 
-    assert '"${HOME}/.local/bin/python3.10"' in pr_workflow
-    assert '"${HOME}/.local/bin/python3.10"' in nightly_workflow
+    setup_python = "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+    assert setup_python in pr_workflow
+    assert setup_python in nightly_workflow
+    assert "python-version: '3.10'" in pr_workflow
+    assert "python-version: '3.10'" in nightly_workflow
     assert "check_environment.py config --profile pr" in pr_workflow
     assert "check_environment.py config --profile nightly" in nightly_workflow
 
 
-def test_every_hcu_workflow_job_is_bound_to_the_local_runner():
-    for name in ("pr-test-hcu.yml", "nightly-test-hcu.yml"):
+def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
+    expected_hcu_jobs = {
+        "pr-test-hcu.yml": ("unit", "runtime"),
+        "nightly-test-hcu.yml": ("nightly",),
+    }
+
+    for name, hcu_jobs in expected_hcu_jobs.items():
         workflow = read_workflow(name)
         jobs = workflow_job_blocks(workflow)
 
         assert "ubuntu-latest" not in workflow
-        for job_name, block in jobs.items():
-            assert "- self-hosted" in block, job_name
-            assert "- bw1000" in block, job_name
-            assert "VERL_HCU_CI_RUNNER_LABEL" in block, job_name
+        for job_name in ("plan", "finish"):
+            block = jobs[job_name]
+            assert "group: ci-general" in block
+            assert "labels: [self-hosted, ci, bw1100]" in block
+
+        for job_name in hcu_jobs:
+            block = jobs[job_name]
+            assert "group: ci-general" in block, job_name
+            assert "labels: [self-hosted, ci, bw1100]" in block, job_name
 
 
 def test_actionlint_knows_the_local_runner_label():
@@ -339,6 +377,18 @@ def test_actionlint_knows_the_local_runner_label():
 
     assert "self-hosted-runner:" in config
     assert "- bw1000" in config
+    assert "- bw1100" in config
+    assert "- ci" in config
+
+
+def test_ci_readme_uses_shared_asset_roots():
+    readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "VERL_HCU_MODEL_ROOT=/ci_public/verl-das/models" in readme
+    assert "VERL_HCU_DATA_ROOT=/ci_public/verl-das/data" in readme
+    assert "/home/github/tly" not in readme
 
 
 def test_ci_support_scripts_and_case_launchers_live_under_hcu_tests():
