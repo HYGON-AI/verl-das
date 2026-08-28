@@ -60,7 +60,7 @@ def _fsdp_activation_offloading_test(rank, world_size, rendezvous_file, strategy
     )
     device_mesh = init_device_mesh(get_device_name(), mesh_shape=(world_size,), mesh_dim_names=("dp",))
 
-    model_name = os.path.expanduser("/public/opendas/DL_DATA/llm-models/qwen2.5/Qwen2.5-0.5B-Instruct")
+    model_name = os.path.expanduser("/ci_public/verl-das/models/qwen2.5/Qwen2.5-0.5B-Instruct")
     config = Qwen2Config(num_hidden_layers=4)
 
     with torch.device(get_device_name()):

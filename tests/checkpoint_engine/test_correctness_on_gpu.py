@@ -43,7 +43,7 @@ async def test_nccl_checkpoint_engine(
     num_gpus_per_node=_ngpus,
     bucket_size_mb=128,
     check_allclose=True,
-    model_path="/public/opendas/DL_DATA/llm-models/qwen3/Qwen3-8B-Base",
+    model_path="/ci_public/verl-das/models/qwen3/Qwen3-8B-Base",
 ):
     model_path = os.path.expanduser(model_path)
     ray.init(
@@ -95,7 +95,7 @@ async def test_nixl_checkpoint_engine(
     num_gpus_per_node=8,
     bucket_size_mb=128,
     check_allclose=True,
-    model_path="/public/opendas/DL_DATA/llm-models/qwen3/Qwen3-8B-Base",
+    model_path="/ci_public/verl-das/models/qwen3/Qwen3-8B-Base",
 ):
     model_path = os.path.expanduser(model_path)
     ray.init(
@@ -153,7 +153,7 @@ async def test_kimi_checkpoint_engine(
     num_nodes=1,
     num_gpus_per_node=8,
     check_allclose=True,
-    model_path="/public/opendas/DL_DATA/llm-models/qwen3/Qwen3-8B-Base",
+    model_path="/ci_public/verl-das/models/qwen3/Qwen3-8B-Base",
 ):
     model_path = os.path.expanduser(model_path)
     ray.init(
