@@ -75,11 +75,6 @@ jobs:
             "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
-        with:
-          python-version: '3.10'
-
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -88,20 +83,40 @@ jobs:
           clean: true
 
       - name: Validate nightly configuration
-        run: >-
-          python
-          tests/hcu/ci/check_environment.py config --profile nightly
+        shell: bash
+        env:
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --env VERL_HCU_VLLM_IMAGE \
+            --env VERL_HCU_SGLANG_IMAGE \
+            --env VERL_HCU_MODEL_ROOT \
+            --env VERL_HCU_DATA_ROOT \
+            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+            --workdir /workspace \
+            "${VERL_HCU_PLAN_IMAGE}" \
+            python3 tests/hcu/ci/check_environment.py config --profile nightly
 
       - name: Build nightly matrix
         id: cases
         shell: bash
         env:
           SELECTED_CASE: ${{ inputs.test_case || 'all' }}
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
-          matrix="$(python \
-            tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
+          matrix="$(docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+            --workdir /workspace \
+            "${VERL_HCU_PLAN_IMAGE}" \
+            python3 tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
           echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
           echo "selected=${SELECTED_CASE}" >> "${GITHUB_OUTPUT}"
           echo "Nightly matrix: ${matrix}"
