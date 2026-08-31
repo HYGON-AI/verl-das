@@ -342,12 +342,30 @@ def test_workflows_validate_only_their_own_configuration_profile():
     nightly_workflow = read_workflow("nightly-test-hcu.yml")
 
     setup_python = "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
-    assert setup_python in pr_workflow
-    assert setup_python in nightly_workflow
-    assert "python-version: '3.10'" in pr_workflow
-    assert "python-version: '3.10'" in nightly_workflow
+    assert setup_python not in pr_workflow
+    assert setup_python not in nightly_workflow
     assert "check_environment.py config --profile pr" in pr_workflow
     assert "check_environment.py config --profile nightly" in nightly_workflow
+
+
+def test_plan_jobs_use_python_from_the_pinned_ci_image():
+    workflows = {
+        "pr-test-hcu.yml": ("VERL_HCU_PR_IMAGE", "plan_pr.py"),
+        "nightly-test-hcu.yml": ("VERL_HCU_VLLM_IMAGE", "plan_nightly.py"),
+    }
+
+    for name, (image_variable, planner) in workflows.items():
+        plan = workflow_job_blocks(read_workflow(name))["plan"]
+
+        assert f"VERL_HCU_PLAN_IMAGE: ${{{{ vars.{image_variable} }}}}" in plan
+        assert "--network none" in plan
+        assert '--volume "${GITHUB_WORKSPACE}:/workspace:ro"' in plan
+        assert "--workdir /workspace" in plan
+        assert f"python3 tests/hcu/ci/{planner}" in plan
+
+    pr_plan = workflow_job_blocks(read_workflow("pr-test-hcu.yml"))["plan"]
+    assert "docker run --rm --interactive" in pr_plan
+    assert '--volume "${GITHUB_OUTPUT}:${GITHUB_OUTPUT}"' in pr_plan
 
 
 def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
