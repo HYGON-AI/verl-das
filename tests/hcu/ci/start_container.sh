@@ -31,6 +31,32 @@ if ! docker image inspect "${image}" >/dev/null 2>&1; then
     docker pull "${image}"
 fi
 
+source_repository="${VERL_HCU_SOURCE_REPOSITORY:-}"
+source_sha="${VERL_HCU_SOURCE_SHA:-}"
+if [[ ! -e "${workspace}/.git" && \
+    ( -z "${source_repository}" || -z "${source_sha}" ) && \
+    "${GITHUB_EVENT_NAME:-}" == "pull_request_target" && \
+    -f "${GITHUB_EVENT_PATH:-}" ]]; then
+    source_ref="$(
+        docker run --rm \
+            --network none \
+            --volume "${GITHUB_EVENT_PATH}:/github-event.json:ro" \
+            "${image}" \
+            python3 -c '
+import json
+
+with open("/github-event.json", encoding="utf-8") as stream:
+    head = json.load(stream)["pull_request"]["head"]
+print(head["repo"]["full_name"], head["sha"], sep="\t")
+'
+    )"
+    IFS=$'\t' read -r source_repository source_sha <<< "${source_ref}"
+fi
+source_repository="${source_repository:-${GITHUB_REPOSITORY:-}}"
+source_sha="${source_sha:-${GITHUB_SHA:-}}"
+VERL_HCU_SOURCE_REPOSITORY="${source_repository}"
+VERL_HCU_SOURCE_SHA="${source_sha}"
+
 volume_args=(
     --volume "${workspace}:/workspace"
     --volume /opt/hyhal:/opt/hyhal:ro
@@ -102,8 +128,6 @@ docker run --detach \
 docker exec "${container}" git config --global --add safe.directory /workspace
 
 if [[ ! -e "${workspace}/.git" ]]; then
-    source_repository="${VERL_HCU_SOURCE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
-    source_sha="${VERL_HCU_SOURCE_SHA:-${GITHUB_SHA:-}}"
     if [[ ! "${source_repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
         echo "ERROR: unsafe source repository: ${source_repository}" >&2
         exit 1
