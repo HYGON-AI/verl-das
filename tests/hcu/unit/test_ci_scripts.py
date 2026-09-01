@@ -155,8 +155,8 @@ def test_nightly_case_manifest_is_the_matrix_source_of_truth():
     planner = load_nightly_planner()
     cases = planner.load_cases()
 
-    # assert [case["engine"] for case in cases] == ["vllm", "sglang"]
-    # assert [case["expected_step"] for case in cases] == [5, 3]
+    assert [case["engine"] for case in cases] == ["vllm", "sglang"]
+    assert [case["expected_step"] for case in cases] == [5, 3]
     assert cases[0]["model_parent"] == "vllm-optest-models/deepseek-ai"
     assert cases[0]["model_path"] == (
         "vllm-optest-models/deepseek-ai/deepseek-llm-7b-chat"
@@ -165,7 +165,7 @@ def test_nightly_case_manifest_is_the_matrix_source_of_truth():
     assert [case["engine"] for case in planner.build_matrix("vllm")["include"]] == [
         "vllm"
     ]
-    # assert planner.build_matrix(cases[1]["id"])["include"] == [cases[1]]
+    assert planner.build_matrix(cases[1]["id"])["include"] == [cases[1]]
     with pytest.raises(ValueError, match="unknown nightly selector"):
         planner.build_matrix("missing-case")
 
@@ -194,7 +194,7 @@ def test_nightly_runner_validates_inputs_and_training_results():
 def test_training_scripts_only_contain_training_configuration():
     scripts = (
         read_script("nightly/bw1000/run_vllm_grpo_5step.sh"),
-        # read_script("nightly/bw1000/run_sglang_off_policy_3step.sh"),
+        read_script("nightly/bw1000/run_sglang_off_policy_3step.sh"),
     )
 
     for script in scripts:
@@ -368,7 +368,7 @@ def test_training_cases_use_configured_roots_without_downloads_or_examples():
     script_paths = (
         HCU_TEST_DIR / "pr" / "run_vllm_grpo_1step.sh",
         HCU_TEST_DIR / "nightly" / "bw1000" / "run_vllm_grpo_5step.sh",
-        # HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_3step.sh",
+        HCU_TEST_DIR / "nightly" / "bw1000" / "run_sglang_off_policy_3step.sh",
     )
 
     for path in script_paths:
@@ -384,10 +384,10 @@ def test_training_cases_use_configured_roots_without_downloads_or_examples():
 def test_complete_gsm8k_data_is_mounted_read_only():
     start = read_script("ci/start_container.sh")
     vllm = read_script("nightly/bw1000/run_vllm_grpo_5step.sh")
-    # sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
+    sglang = read_script("nightly/bw1000/run_sglang_off_policy_3step.sh")
 
     assert '--volume "${data_dir}:${data_dir}:ro"' in start
-    for script in (vllm,):
+    for script in (vllm, sglang):
         assert "train_file=${data_path}/gsm8k/train.parquet" in script
         assert "test_file=${data_path}/gsm8k/test.parquet" in script
         assert "prepare_gsm8k_data.py" not in script
@@ -452,6 +452,6 @@ def test_nightly_manifest_is_valid_json_with_current_cases():
     assert document["schema_version"] == 1
     assert [case["id"] for case in document["cases"]] == [
         "vllm-deepseek-7b-grpo-5step",
-        # "sglang-qwen3-0p6b-off-policy-3step",
+        "sglang-qwen3-0p6b-off-policy-3step",
     ]
     assert not (HCU_TEST_DIR / "pr" / "ci_cases.yaml").exists()
