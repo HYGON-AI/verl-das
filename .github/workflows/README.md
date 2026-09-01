@@ -9,18 +9,19 @@ Configure these variables before enabling the workflows:
 
 | Variable | Purpose |
 | --- | --- |
+| `VERL_HCU_CI_IMAGE` | Fixed image tag shared by PR, nightly vLLM, and nightly SGLang jobs |
 | `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into PR E2E and nightly containers |
 | `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory used by PR E2E and nightly jobs |
 
-One fixed `VERL_HCU_CI_IMAGE` tag is defined in each workflow `env` block and
-is shared by PR, nightly vLLM, and nightly SGLang jobs. Update the fixed tag
-explicitly when the environment changes:
+Set `VERL_HCU_CI_IMAGE` to one fixed tag. Both workflows read the repository
+variable, so updating it switches PR, nightly vLLM, and nightly SGLang jobs
+together:
 
 ```text
 registry.example.com/project/image:version-tag
 ```
 
-The workflows validate the fixed image before starting Docker. Their shared
+The workflows validate the configured image before starting Docker. Their shared
 configuration check validates the model and dataset roots used by model tests.
 
 All HCU CI assets use the runner-shared directory:

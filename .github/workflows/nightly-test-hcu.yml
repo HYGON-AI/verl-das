@@ -19,8 +19,7 @@ permissions:
   contents: read
 
 env:
-  VERL_HCU_CI_IMAGE: >-
-    harbor.sourcefind.cn:5443/dcu/admin/base/custom:verl-das-vllm0.25.1-ubuntu22.04-dtk2604-py3.10-20260825-0031
+  VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_CI_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
   VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
   VERL_HCU_CI_TMP_ROOT: /tmp/verl-hcu-ci
