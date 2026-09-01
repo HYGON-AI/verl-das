@@ -151,4 +151,16 @@ if [[ ! -e "${workspace}/.git" ]]; then
         '
 fi
 
+docker exec \
+    --env "VERL_HCU_SOURCE_REPOSITORY=${source_repository}" \
+    --env "VERL_HCU_SOURCE_SHA=${source_sha}" \
+    "${container}" \
+    bash -euo pipefail -c '
+        mkdir -p /workspace/ci-logs
+        printf "source_repository=%s\nsource_sha=%s\n" \
+            "${VERL_HCU_SOURCE_REPOSITORY}" \
+            "${VERL_HCU_SOURCE_SHA}" \
+            > /workspace/ci-logs/checkout.log
+    '
+
 echo "Started HCU CI container ${container}."

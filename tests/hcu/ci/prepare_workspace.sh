@@ -4,6 +4,7 @@ set -euo pipefail
 
 prepare_hcu_workspace() {
     local script_dir repo_root patch_source patch_target joined_python_path patch_tmp
+    local attempt
     local -a python_paths
 
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,7 +25,18 @@ prepare_hcu_workspace() {
     done
 
     git -C "${repo_root}" submodule sync --recursive
-    git -C "${repo_root}" submodule update --init --recursive
+    for attempt in 1 2 3; do
+        if git -c http.version=HTTP/1.1 -C "${repo_root}" submodule update \
+            --init --recursive --depth 1; then
+            break
+        fi
+        if [[ ${attempt} -eq 3 ]]; then
+            echo "ERROR: failed to initialize HCU CI submodules after ${attempt} attempts" >&2
+            return 1
+        fi
+        echo "WARNING: retrying HCU CI submodules after attempt ${attempt}" >&2
+        sleep "$((attempt * 5))"
+    done
     python3 "${script_dir}/verify_submodules.py" --repo-root "${repo_root}"
 
     python_paths=(
