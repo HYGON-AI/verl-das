@@ -104,9 +104,9 @@ TRAINER_CONFIG=(
 python3 -m verl.trainer.main_ppo \
     --config-path=config \
     --config-name=ppo_trainer \
-    ${DATA_CONFIG[@]} \
-    ${ACTOR_CONFIG[@]} \
-    ${REF_CONFIG[@]} \
-    ${ROLLOUT_CONFIG[@]} \
-    ${ALGORITHM_CONFIG[@]} \
-    ${TRAINER_CONFIG[@]} \
+    "${DATA_CONFIG[@]}" \
+    "${ACTOR_CONFIG[@]}" \
+    "${REF_CONFIG[@]}" \
+    "${ROLLOUT_CONFIG[@]}" \
+    "${ALGORITHM_CONFIG[@]}" \
+    "${TRAINER_CONFIG[@]}" \

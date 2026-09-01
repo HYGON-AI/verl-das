@@ -15,6 +15,9 @@ on:
       - ".github/workflows/pr-test-hcu.yml"
       - ".gitmodules"
       - "third_party/verl"
+      - "third_party/Megatron-LM"
+      - "third_party/VeOmni"
+      - "requirements.txt"
   workflow_dispatch:
 
 concurrency:

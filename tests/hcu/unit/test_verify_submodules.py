@@ -19,9 +19,9 @@ from subprocess import CompletedProcess
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "verify_submodules.py"
 EXPECTED = {
-    "third_party/verl": "7aed6b230776f963fa09509c10d9c3a767d1102c",
-    "third_party/Megatron-LM": "266f1c97dca477ca8b92c16087506da2000b0b84",
-    "third_party/VeOmni": "cbb3e012936912fd9ce063241e1fb77e8d564d2f",
+    "third_party/verl": "1" * 40,
+    "third_party/Megatron-LM": "2" * 40,
+    "third_party/VeOmni": "3" * 40,
 }
 
 
@@ -33,10 +33,17 @@ def load_module():
     return module
 
 
-def test_expected_submodule_inventory_is_fixed():
+def mark_submodules_initialized(repository_root):
+    for path in EXPECTED:
+        marker = repository_root / path / ".git"
+        marker.parent.mkdir(parents=True)
+        marker.write_text("gitdir: test\n", encoding="utf-8")
+
+
+def test_expected_submodule_inventory_is_complete():
     module = load_module()
 
-    assert module.EXPECTED_SUBMODULES == EXPECTED
+    assert module.SUBMODULE_PATHS == tuple(EXPECTED)
 
 
 def test_parse_gitlink_sha_reads_commit_entry():
@@ -44,7 +51,7 @@ def test_parse_gitlink_sha_reads_commit_entry():
 
     assert (
         module.parse_gitlink_sha(
-            "160000 commit 7aed6b230776f963fa09509c10d9c3a767d1102c\tthird_party/verl"
+            f"160000 commit {EXPECTED['third_party/verl']}\tthird_party/verl"
         )
         == EXPECTED["third_party/verl"]
     )
@@ -53,6 +60,7 @@ def test_parse_gitlink_sha_reads_commit_entry():
 def test_verify_submodules_checks_gitlink_and_checkout(tmp_path):
     module = load_module()
     calls = []
+    mark_submodules_initialized(tmp_path)
 
     def run(command, **kwargs):
         calls.append(command)
@@ -73,9 +81,10 @@ def test_verify_submodules_checks_gitlink_and_checkout(tmp_path):
     assert len(calls) == 6
 
 
-def test_verify_submodules_reports_gitlink_and_checkout_mismatches(tmp_path):
+def test_verify_submodules_reports_checkout_mismatches(tmp_path):
     module = load_module()
     wrong_sha = "0" * 40
+    mark_submodules_initialized(tmp_path)
 
     def run(command, **kwargs):
         if command[3] == "ls-tree":
@@ -83,16 +92,15 @@ def test_verify_submodules_reports_gitlink_and_checkout_mismatches(tmp_path):
             return CompletedProcess(
                 command,
                 0,
-                f"160000 commit {wrong_sha}\t{path}\n",
+                f"160000 commit {EXPECTED[path]}\t{path}\n",
                 "",
             )
         return CompletedProcess(command, 0, wrong_sha + "\n", "")
 
     errors = module.verify_submodules(tmp_path, run=run)
 
-    assert len(errors) == 6
-    assert any("gitlink" in error for error in errors)
-    assert any("checkout" in error for error in errors)
+    assert len(errors) == 3
+    assert all("checkout SHA mismatch" in error for error in errors)
 
 
 def test_verify_submodules_reports_missing_checkout(tmp_path):

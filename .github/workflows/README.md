@@ -76,6 +76,9 @@ updated, reopened, or marked ready for review and change one of these paths:
 - `.github/workflows/pr-test-hcu.yml`
 - `.gitmodules`
 - `third_party/verl`
+- `third_party/Megatron-LM`
+- `third_party/VeOmni`
+- `requirements.txt`
 
 GitHub applies these filters before dispatching any HCU runner job. Matching
 pull requests run the complete PR suite; unrelated changes do not start the

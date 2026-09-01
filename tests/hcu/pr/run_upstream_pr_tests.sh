@@ -39,7 +39,7 @@ test_paths=(
     tests/workers/reward_manager/test_registry_on_cpu.py
 )
 
-# The pinned upstream v0.8.0 case says the model path is not loaded, but its
+# The pinned upstream v0.9.0 case says the model path is not loaded, but its
 # OmegaConf.to_object call does load ~/models/Qwen/Qwen2.5-0.5B. Exclude only
 # that broken node until the pinned upstream revision contains the fix.
 broken_upstream_node="tests/workers/config/test_model_config_on_cpu.py::TestHFModelConfigCPU::test_target_modules_raises_on_invalid_type"
