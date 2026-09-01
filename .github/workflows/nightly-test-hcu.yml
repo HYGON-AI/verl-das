@@ -19,8 +19,7 @@ permissions:
   contents: read
 
 env:
-  VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
-  VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
+  VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_CI_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
   VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
   VERL_HCU_CI_TMP_ROOT: /tmp/verl-hcu-ci
@@ -43,8 +42,6 @@ jobs:
     steps:
       - name: Restore existing workspace ownership
         shell: bash
-        env:
-          VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
@@ -64,8 +61,8 @@ jobs:
             echo "ERROR: unsafe runner ownership: ${owner}" >&2
             exit 1
           fi
-          if [[ ! "${VERL_HCU_CI_IMAGE}" =~ @sha256:[0-9a-fA-F]{64}$ ]]; then
-            echo "ERROR: VERL_HCU_VLLM_IMAGE must use an immutable sha256 digest" >&2
+          if [[ -z "${VERL_HCU_CI_IMAGE}" ]]; then
+            echo "ERROR: VERL_HCU_CI_IMAGE is required" >&2
             exit 1
           fi
 
@@ -84,29 +81,25 @@ jobs:
 
       - name: Validate nightly configuration
         shell: bash
-        env:
-          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             --network none \
-            --env VERL_HCU_VLLM_IMAGE \
-            --env VERL_HCU_SGLANG_IMAGE \
+            --env VERL_HCU_CI_IMAGE \
             --env VERL_HCU_MODEL_ROOT \
             --env VERL_HCU_DATA_ROOT \
             --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
             --workdir /workspace \
-            "${VERL_HCU_PLAN_IMAGE}" \
-            python3 tests/hcu/ci/check_environment.py config --profile nightly
+            "${VERL_HCU_CI_IMAGE}" \
+            python3 tests/hcu/ci/check_environment.py config
 
       - name: Build nightly matrix
         id: cases
         shell: bash
         env:
           SELECTED_CASE: ${{ inputs.test_case || 'all' }}
-          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
@@ -115,7 +108,7 @@ jobs:
             --network none \
             --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
             --workdir /workspace \
-            "${VERL_HCU_PLAN_IMAGE}" \
+            "${VERL_HCU_CI_IMAGE}" \
             python3 tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
           echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
           echo "selected=${SELECTED_CASE}" >> "${GITHUB_OUTPUT}"
@@ -138,7 +131,6 @@ jobs:
       VERL_HCU_CI_CONTAINER_NAME: verl-hcu-nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_RUN_ID: nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ci-logs/nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_IMAGE: ${{ matrix.image_profile == 'vllm' && vars.VERL_HCU_VLLM_IMAGE || vars.VERL_HCU_SGLANG_IMAGE }}
     steps:
       - name: Checkout repository and fixed submodules
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2

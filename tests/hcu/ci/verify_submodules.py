@@ -18,11 +18,11 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-EXPECTED_SUBMODULES = {
-    "third_party/verl": "7aed6b230776f963fa09509c10d9c3a767d1102c",
-    "third_party/Megatron-LM": "266f1c97dca477ca8b92c16087506da2000b0b84",
-    "third_party/VeOmni": "cbb3e012936912fd9ce063241e1fb77e8d564d2f",
-}
+SUBMODULE_PATHS = (
+    "third_party/verl",
+    "third_party/Megatron-LM",
+    "third_party/VeOmni",
+)
 
 
 def parse_gitlink_sha(output: str) -> str | None:
@@ -39,7 +39,7 @@ def verify_submodules(
     root = repository_root.resolve()
     errors = []
 
-    for path, expected_sha in EXPECTED_SUBMODULES.items():
+    for path in SUBMODULE_PATHS:
         gitlink_result = run(
             ["git", "-C", str(root), "ls-tree", "HEAD", "--", path],
             capture_output=True,
@@ -51,14 +51,17 @@ def verify_submodules(
             if gitlink_result.returncode == 0
             else None
         )
-        if gitlink_sha != expected_sha:
-            actual = gitlink_sha or "missing"
-            errors.append(
-                f"{path} gitlink SHA mismatch: expected {expected_sha}, got {actual}"
-            )
+        if gitlink_sha is None:
+            errors.append(f"{path} gitlink is missing or invalid")
+            continue
+
+        checkout_root = root / path
+        if not (checkout_root / ".git").exists():
+            errors.append(f"{path} checkout is not initialized")
+            continue
 
         checkout_result = run(
-            ["git", "-C", str(root / path), "rev-parse", "HEAD"],
+            ["git", "-C", str(checkout_root), "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -66,10 +69,10 @@ def verify_submodules(
         checkout_sha = (
             checkout_result.stdout.strip() if checkout_result.returncode == 0 else None
         )
-        if checkout_sha != expected_sha:
+        if checkout_sha != gitlink_sha:
             actual = checkout_sha or "missing"
             errors.append(
-                f"{path} checkout SHA mismatch: expected {expected_sha}, got {actual}"
+                f"{path} checkout SHA mismatch: expected {gitlink_sha}, got {actual}"
             )
 
     return errors

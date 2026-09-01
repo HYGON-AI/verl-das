@@ -30,7 +30,6 @@ REQUIRED_FIELDS = {
     "id": str,
     "name": str,
     "engine": str,
-    "image_profile": str,
     "script": str,
     "model_parent": str,
     "model_path": str,
@@ -82,10 +81,8 @@ def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[dict[str, Any]]:
         seen_ids.add(case_id)
 
         engine = case["engine"]
-        if engine not in ENGINES or case["image_profile"] != engine:
-            raise ValueError(
-                f"nightly case {case_id} must use a matching vllm or sglang image"
-            )
+        if engine not in ENGINES:
+            raise ValueError(f"nightly case {case_id} engine must be vllm or sglang")
         if not case["name"].strip():
             raise ValueError(f"nightly case {case_id} has an empty display name")
         for field in ("script", "model_parent", "model_path"):

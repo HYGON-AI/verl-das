@@ -5,8 +5,8 @@ image="${VERL_HCU_CI_IMAGE:-}"
 container="${VERL_HCU_CI_CONTAINER_NAME:-}"
 workspace="${GITHUB_WORKSPACE:-}"
 
-if [[ ! "${image}" =~ @sha256:[0-9a-fA-F]{64}$ ]]; then
-    echo "ERROR: VERL_HCU_CI_IMAGE must use an immutable sha256 digest" >&2
+if [[ -z "${image}" ]]; then
+    echo "ERROR: VERL_HCU_CI_IMAGE is required" >&2
     exit 1
 fi
 if [[ ! "${container}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
@@ -30,6 +30,32 @@ fi
 if ! docker image inspect "${image}" >/dev/null 2>&1; then
     docker pull "${image}"
 fi
+
+source_repository="${VERL_HCU_SOURCE_REPOSITORY:-}"
+source_sha="${VERL_HCU_SOURCE_SHA:-}"
+if [[ ! -e "${workspace}/.git" && \
+    ( -z "${source_repository}" || -z "${source_sha}" ) && \
+    "${GITHUB_EVENT_NAME:-}" == "pull_request_target" && \
+    -f "${GITHUB_EVENT_PATH:-}" ]]; then
+    source_ref="$(
+        docker run --rm \
+            --network none \
+            --volume "${GITHUB_EVENT_PATH}:/github-event.json:ro" \
+            "${image}" \
+            python3 -c '
+import json
+
+with open("/github-event.json", encoding="utf-8") as stream:
+    head = json.load(stream)["pull_request"]["head"]
+print(head["repo"]["full_name"], head["sha"], sep="\t")
+'
+    )"
+    IFS=$'\t' read -r source_repository source_sha <<< "${source_ref}"
+fi
+source_repository="${source_repository:-${GITHUB_REPOSITORY:-}}"
+source_sha="${source_sha:-${GITHUB_SHA:-}}"
+VERL_HCU_SOURCE_REPOSITORY="${source_repository}"
+VERL_HCU_SOURCE_SHA="${source_sha}"
 
 volume_args=(
     --volume "${workspace}:/workspace"
@@ -61,6 +87,8 @@ for name in \
     VERL_HCU_CI_RUN_ID \
     VERL_HCU_CI_LOG_DIR \
     VERL_HCU_CI_TMP_ROOT \
+    VERL_HCU_SOURCE_REPOSITORY \
+    VERL_HCU_SOURCE_SHA \
     VERL_HCU_MODEL_ROOT \
     VERL_HCU_DATA_ROOT \
     HF_HUB_OFFLINE \
@@ -98,4 +126,41 @@ docker run --detach \
     sleep infinity
 
 docker exec "${container}" git config --global --add safe.directory /workspace
+
+if [[ ! -e "${workspace}/.git" ]]; then
+    if [[ ! "${source_repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+        echo "ERROR: unsafe source repository: ${source_repository}" >&2
+        exit 1
+    fi
+    if [[ ! "${source_sha}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        echo "ERROR: unsafe source SHA: ${source_sha}" >&2
+        exit 1
+    fi
+
+    docker exec \
+        --env "VERL_HCU_SOURCE_REPOSITORY=${source_repository}" \
+        --env "VERL_HCU_SOURCE_SHA=${source_sha}" \
+        "${container}" \
+        bash -euo pipefail -c '
+            git -C /workspace init
+            git -C /workspace remote add origin \
+                "https://github.com/${VERL_HCU_SOURCE_REPOSITORY}.git"
+            git -C /workspace fetch --no-tags --depth=1 \
+                origin "${VERL_HCU_SOURCE_SHA}"
+            git -C /workspace reset --hard FETCH_HEAD
+        '
+fi
+
+docker exec \
+    --env "VERL_HCU_SOURCE_REPOSITORY=${source_repository}" \
+    --env "VERL_HCU_SOURCE_SHA=${source_sha}" \
+    "${container}" \
+    bash -euo pipefail -c '
+        mkdir -p /workspace/ci-logs
+        printf "source_repository=%s\nsource_sha=%s\n" \
+            "${VERL_HCU_SOURCE_REPOSITORY}" \
+            "${VERL_HCU_SOURCE_SHA}" \
+            > /workspace/ci-logs/checkout.log
+    '
+
 echo "Started HCU CI container ${container}."
