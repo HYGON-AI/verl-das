@@ -2,7 +2,6 @@ sentencepiece
 py_cpuinfo 
 openai 
 tiktoken 
-xgrammar 
 partial_json_parser 
 msgspec 
 gguf
@@ -15,7 +14,8 @@ tensordict
 ray[default]>=2.56.0
 hydra-core
 tensorboard
-# vllm>=0.18.1
+# vllm>=0.22.0
+# sglang>=0.5.15
 torchdata
 peft
 datasets
@@ -23,3 +23,9 @@ mathruler
 pylatexenc
 qwen_vl_utils
 git+https://github.com/ISEEKYAN/mbridge.git@main
+TransferQueue
+ipython
+transformers==5.12.1
+soundfile
+flash-linear-attention
+mlflow

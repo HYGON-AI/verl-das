@@ -16,7 +16,7 @@ do
     fi
 done
 
-# dependency: vllm==0.18.1, transformers==5.7.0, Megatron-LM==0.17.1, tilelang==0.1.9
+# dependency: vllm==0.25.1, transformers==5.12.1, Megatron-LM==0.19.0, tilelang==0.1.9
 CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )
@@ -28,8 +28,8 @@ export NVTE_USE_HIPBLASLT_GROUPEDGEMM=1
 train_file=${data_path}/geo3k/train.parquet
 test_file=${data_path}/geo3k/test.parquet
 train_batch_size=32
-max_prompt_length=8192
-max_response_length=24576
+max_prompt_length=24576
+max_response_length=8192
 
 DATA_CONFIG=(
     data.train_files=${train_file}
@@ -78,7 +78,7 @@ ACTOR_CONFIG=(
     actor_rollout_ref.actor.megatron.expert_tensor_parallel_size=${train_etp}
     actor_rollout_ref.actor.megatron.param_offload=True
     actor_rollout_ref.actor.megatron.optimizer_offload=True
-    actor_rollout_ref.actor.megatron.grad_offload=False
+    actor_rollout_ref.actor.megatron.grad_offload=True
     actor_rollout_ref.actor.megatron.dtype=bfloat16
     ++actor_rollout_ref.actor.megatron.override_transformer_config.attention_backend=auto
     +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_method=uniform
@@ -101,11 +101,12 @@ REF_CONFIG=(
     actor_rollout_ref.ref.megatron.expert_model_parallel_size=${train_ep}
     actor_rollout_ref.ref.megatron.expert_tensor_parallel_size=${train_etp}
     actor_rollout_ref.ref.megatron.param_offload=True
+    actor_rollout_ref.ref.megatron.optimizer_offload=True
 )
 
 # ===================================== Rollout Config =====================================
 gen_tp=4
-rollout_gpu_mem_util=0.2
+rollout_gpu_mem_util=0.3
 rollout_n=5
 enable_sleep=True
 
@@ -119,7 +120,7 @@ ROLLOUT_CONFIG=(
     actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=${use_dynamic_bsz}
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${ppo_max_token_len_per_gpu}
     actor_rollout_ref.rollout.calculate_log_probs=True
-    actor_rollout_ref.rollout.free_cache_engine=False
+    actor_rollout_ref.rollout.free_cache_engine=${enable_sleep}
     +actor_rollout_ref.rollout.enable_sleep_mode=${enable_sleep}
 )
 

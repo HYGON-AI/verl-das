@@ -12,30 +12,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-_DEVICE_FLOPS = {
-    "CPU": 448e9,
-    "GB200": 2.5e15,
-    "B200": 2.25e15,
-    "MI300X": 1307e12,
-    "MI350X": 2300e12,
-    "MI355X": 2500e12,
-    "H100": 989e12,
-    "H800": 989e12,
-    "H200": 989e12,
-    "A100": 312e12,
-    "A800": 312e12,
-    "L40S": 362.05e12,
-    "L40": 181.05e12,
-    "A40": 149.7e12,
-    "L20": 119.5e12,
-    "H20": 148e12,
-    "910B": 354e12,
-    "A2G3": 354e12,
-    "Ascend950DT": 432e12,
-    "Ascend910": 354e12,
-    "RTX 3070 Ti": 21.75e12,
-    "BW1000": 480e12,
-    "BW1100": 360e12,
-    "BW1101": 360e12,
-}

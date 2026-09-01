@@ -84,19 +84,19 @@ fi
 python3 - <<'PY'
 import verl
 
+from hcu_verl.plugin.platform.platform_rocm import rollout_env_vars
+from hcu_verl.trainer.constants_ppo import PPO_RAY_RUNTIME_ENV
+from hcu_verl.utils.flops_counter import _DEVICE_FLOPS
 from hcu_verl.core.dist_checkpointing.strategies.filesystem_async import (
     preload_tensors,
 )
-from hcu_verl.trainer.constants_ppo import PPO_RAY_RUNTIME_ENV
-from hcu_verl.utils.flops_counter import _DEVICE_FLOPS
-from hcu_verl.utils.megatron_utils import get_model
-from hcu_verl.workers.rollout.vllm_rollout.utils import get_device_uuid
+
+from verl.plugin.platform.platform_rocm import PlatformROCm
+from verl.trainer import constants_ppo
+from verl.utils import flops_counter
 from megatron.core.dist_checkpointing.strategies.filesystem_async import (
     FileSystemWriterAsync,
 )
-from verl.trainer import constants_ppo
-from verl.utils import flops_counter, megatron_utils
-from verl.workers.rollout.vllm_rollout import utils as vllm_utils
 
 expected_preload = (
     preload_tensors.__func__
@@ -104,6 +104,11 @@ expected_preload = (
     else preload_tensors
 )
 checks = (
+    (
+        "verl.plugin.platform.platform_rocm.PlatformROCm.rollout_env_vars",
+        PlatformROCm.rollout_env_vars,
+        rollout_env_vars,
+    ),
     (
         "verl.trainer.constants_ppo.PPO_RAY_RUNTIME_ENV",
         constants_ppo.PPO_RAY_RUNTIME_ENV,
@@ -113,16 +118,6 @@ checks = (
         "verl.utils.flops_counter._DEVICE_FLOPS",
         flops_counter._DEVICE_FLOPS,
         _DEVICE_FLOPS,
-    ),
-    (
-        "verl.utils.megatron_utils.get_model",
-        megatron_utils.get_model,
-        get_model,
-    ),
-    (
-        "verl.workers.rollout.vllm_rollout.utils.get_device_uuid",
-        vllm_utils.get_device_uuid,
-        get_device_uuid,
     ),
     (
         "FileSystemWriterAsync.preload_tensors",

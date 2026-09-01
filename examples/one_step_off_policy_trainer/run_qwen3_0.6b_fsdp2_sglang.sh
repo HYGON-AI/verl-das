@@ -16,10 +16,11 @@ do
     fi
 done
 
-# dependency: sglang==0.5.12, transformers==5.7.0, kernels==0.14.0
+# dependency: sglang==0.5.18, transformers==5.12.1, kernels==0.14.1
 CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )
+export SGLANG_USE_TRITON_VLLM_FA=1
 
 # ===================================== Data Config =====================================
 train_file=${data_path}/gsm8k/train.parquet

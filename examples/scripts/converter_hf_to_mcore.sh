@@ -14,7 +14,7 @@ export GLOG_minloglevel=3
 export PYTHONPATH=${VERL_PATH}:${VERL_PATH}/third_party/verl:${VERL_PATH}/third_party/Megatron-LM:$PYTHONPATH
 
 # single gpu
-python ${VERL_PATH}/verl/scripts/converter_hf_to_mcore.py \
+python ${VERL_PATH}/third_party/verl/scripts/converter_hf_to_mcore.py \
        --hf_model_path ${hf_model_path} \
        --output_path ${mcore_model_path}
 

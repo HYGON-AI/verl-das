@@ -38,15 +38,6 @@ verl-das：基于HCU生态的强化学习训练套件，旨在为HCU生态合作
 
 ## License
 
-This repository is based on the following fixed upstream baseline:
-
-- Upstream project: verl
-- Upstream repository: https://github.com/verl-project/verl
-- Upstream branch: `release/v0.8.0`
-- Upstream tag: `v0.8.0`
-- Upstream commit: `7aed6b230776f963fa09509c10d9c3a767d1102c`
-- Upstream license: `Apache-2.0`
-
 HCU adaptations, modifications, and original contributions by Hygon Information Technology Co., Ltd. are licensed under the Apache License, Version 2.0.
 
 Modified by Hygon Information Technology Co., Ltd.
