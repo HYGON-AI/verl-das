@@ -5,8 +5,8 @@ image="${VERL_HCU_CI_IMAGE:-}"
 container="${VERL_HCU_CI_CONTAINER_NAME:-}"
 workspace="${GITHUB_WORKSPACE:-}"
 
-if [[ ! "${image}" =~ @sha256:[0-9a-fA-F]{64}$ ]]; then
-    echo "ERROR: VERL_HCU_CI_IMAGE must use an immutable sha256 digest" >&2
+if [[ -z "${image}" ]]; then
+    echo "ERROR: VERL_HCU_CI_IMAGE is required" >&2
     exit 1
 fi
 if [[ ! "${container}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then

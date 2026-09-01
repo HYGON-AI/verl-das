@@ -85,7 +85,7 @@ def test_allowed_scopes_match_supported_modules():
         "fix(runtime): preserve runtime env",
         "docs(ci): document smoke coverage",
         "perf(attention): improve kernel latency",
-        "build(docker): pin image digest",
+        "build(docker): set fixed image tag",
         "test(tests): cover metadata",
     ],
 )

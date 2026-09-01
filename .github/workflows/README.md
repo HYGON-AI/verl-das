@@ -9,16 +9,17 @@ Configure these variables before enabling the workflows:
 
 | Variable | Purpose |
 | --- | --- |
-| `VERL_HCU_PR_IMAGE` | HCU image used by all PR test layers |
-| `VERL_HCU_VLLM_IMAGE` | HCU image used by the vLLM nightly job |
 | `VERL_HCU_SGLANG_IMAGE` | HCU image used by the SGLang nightly job |
 | `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into PR E2E and nightly containers |
 | `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory used by PR E2E and nightly jobs |
 
-All image values must use an immutable digest:
+The PR and vLLM image tags are defined once in their workflow `env` blocks.
+The SGLang image remains a repository variable because it uses a separate
+runtime. Use fixed version tags and update them explicitly when the environment
+changes:
 
 ```text
-registry.example.com/project/image@sha256:<64 hexadecimal characters>
+registry.example.com/project/image:version-tag
 ```
 
 The PR configuration check requires the PR image, model root, and dataset

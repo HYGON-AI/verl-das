@@ -29,11 +29,6 @@ CONFIG_ENV_VARS = (
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
 )
-IMAGE_ENV_VARS = (
-    "VERL_HCU_PR_IMAGE",
-    "VERL_HCU_VLLM_IMAGE",
-    "VERL_HCU_SGLANG_IMAGE",
-)
 PR_CONFIG_ENV_VARS = (
     "VERL_HCU_PR_IMAGE",
     "VERL_HCU_MODEL_ROOT",
@@ -56,11 +51,10 @@ def load_module():
 
 
 def config_environment() -> dict[str, str]:
-    digest = "@sha256:" + "a" * 64
     return {
-        "VERL_HCU_PR_IMAGE": "registry.example/pr" + digest,
-        "VERL_HCU_VLLM_IMAGE": "registry.example/vllm" + digest,
-        "VERL_HCU_SGLANG_IMAGE": "registry.example/sglang" + digest,
+        "VERL_HCU_PR_IMAGE": "registry.example/verl:pr",
+        "VERL_HCU_VLLM_IMAGE": "registry.example/verl:vllm",
+        "VERL_HCU_SGLANG_IMAGE": "registry.example/verl:sglang",
         "VERL_HCU_MODEL_ROOT": "/configuration/host/models",
         "VERL_HCU_DATA_ROOT": "/configuration/host/data",
     }
@@ -81,7 +75,6 @@ def test_config_inventory_is_exact():
     module = load_module()
 
     assert module.CONFIG_ENV_VARS == CONFIG_ENV_VARS
-    assert module.IMAGE_ENV_VARS == IMAGE_ENV_VARS
     assert module.CONFIG_PROFILES == {
         "pr": PR_CONFIG_ENV_VARS,
         "nightly": NIGHTLY_CONFIG_ENV_VARS,
@@ -148,17 +141,6 @@ def test_validate_config_requires_all_repository_variables(name):
     errors = module.validate_config(environment)
 
     assert f"{name} is required" in errors
-
-
-@pytest.mark.parametrize("name", IMAGE_ENV_VARS)
-def test_validate_config_requires_digest_pinned_images(name):
-    module = load_module()
-    environment = config_environment()
-    environment[name] = "registry.example/verl:latest"
-
-    errors = module.validate_config(environment)
-
-    assert any(name in error and "@sha256:" in error for error in errors)
 
 
 @pytest.mark.parametrize(

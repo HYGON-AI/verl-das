@@ -14,7 +14,6 @@
 
 import argparse
 import os
-import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -25,11 +24,6 @@ CONFIG_ENV_VARS = (
     "VERL_HCU_SGLANG_IMAGE",
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
-)
-IMAGE_ENV_VARS = (
-    "VERL_HCU_PR_IMAGE",
-    "VERL_HCU_VLLM_IMAGE",
-    "VERL_HCU_SGLANG_IMAGE",
 )
 PR_CONFIG_ENV_VARS = (
     "VERL_HCU_PR_IMAGE",
@@ -48,7 +42,6 @@ CONFIG_PROFILES = {
     "all": CONFIG_ENV_VARS,
 }
 RUNTIME_PATH_ENV_VARS = ("VERL_HCU_MODEL_ROOT", "VERL_HCU_DATA_ROOT")
-IMAGE_DIGEST_PATTERN = re.compile(r"^.+@sha256:[0-9a-fA-F]{64}$")
 
 
 def visible_device_ids(value: str) -> tuple[str, ...]:
@@ -65,13 +58,6 @@ def validate_config(
     for name in required_names:
         if not environment.get(name, "").strip():
             errors.append(f"{name} is required")
-
-    for name in IMAGE_ENV_VARS:
-        if name not in required_names:
-            continue
-        image = environment.get(name, "").strip()
-        if image and not IMAGE_DIGEST_PATTERN.fullmatch(image):
-            errors.append(f"{name} must be pinned with @sha256:<64 hex digits>")
 
     return errors
 
