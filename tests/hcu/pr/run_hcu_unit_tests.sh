@@ -20,6 +20,9 @@ touch "${run_dir}/ray-owned"
 source "${CI_DIR}/prepare_workspace.sh"
 export PYTHONPATH="${REPO_ROOT}/tests${PYTHONPATH:+:${PYTHONPATH}}"
 python3 "${CI_DIR}/check_environment.py" runtime --require-gpus 8
+if ! python3 -c 'import mlflow' >/dev/null 2>&1; then
+    python3 -m pip install --no-cache-dir mlflow
+fi
 
 cd "${REPO_ROOT}"
 

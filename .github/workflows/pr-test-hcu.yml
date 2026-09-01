@@ -135,12 +135,12 @@ jobs:
           bash tests/hcu/ci/exec_container.sh --
           bash tests/hcu/pr/run_upstream_pr_tests.sh
 
-      - name: Install TransferQueue for HCU unit tests
+      - name: Install optional HCU unit-test dependencies
         shell: bash
         run: >-
           bash tests/hcu/ci/exec_container.sh
           --env PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple --
-          python3 -m pip install --no-cache-dir TransferQueue==0.1.9
+          python3 -m pip install --no-cache-dir TransferQueue==0.1.9 mlflow
 
       - name: Run HCU unit tests
         timeout-minutes: 60
