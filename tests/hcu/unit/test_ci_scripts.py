@@ -47,10 +47,6 @@ def load_nightly_planner():
     return load_module("plan_nightly.py", "verl_hcu_plan_nightly_test")
 
 
-def load_pr_planner():
-    return load_module("plan_pr.py", "verl_hcu_plan_pr_test")
-
-
 def workflow_job_blocks(workflow: str) -> dict[str, str]:
     jobs = workflow.split("\njobs:\n", maxsplit=1)[1]
     matches = list(re.finditer(r"(?m)^  ([a-z][a-z0-9-]*):\s*$", jobs))
@@ -74,10 +70,10 @@ def test_all_hcu_python_files_have_hygon_apache_headers():
         assert "Licensed under the Apache License, Version 2.0" in text, path
 
 
-def test_new_ci_planners_have_apache_spdx_headers():
-    for name in ("plan_nightly.py", "plan_pr.py"):
-        planner = read_script(f"ci/{name}")
-        assert "SPDX-License-Identifier: Apache-2.0" in planner
+def test_nightly_planner_has_apache_spdx_header():
+    planner = read_script("ci/plan_nightly.py")
+
+    assert "SPDX-License-Identifier: Apache-2.0" in planner
 
 
 def test_hcu_shell_scripts_use_strict_mode_without_license_headers():
@@ -151,24 +147,24 @@ def test_workflows_use_explicit_containers_without_restore_jobs():
     assert not (HCU_TEST_DIR / "ci" / "restore_runner_permissions.sh").exists()
 
 
-def test_plan_jobs_restore_workspace_ownership_before_checkout():
+def test_workflows_restore_workspace_ownership_before_checkout():
     workflows = {
-        "pr-test-hcu.yml": "VERL_HCU_PR_IMAGE",
-        "nightly-test-hcu.yml": "VERL_HCU_VLLM_IMAGE",
+        "pr-test-hcu.yml": ("unit", "VERL_HCU_PR_IMAGE"),
+        "nightly-test-hcu.yml": ("plan", "VERL_HCU_VLLM_IMAGE"),
     }
 
-    for name, image_variable in workflows.items():
-        plan = workflow_job_blocks(read_workflow(name))["plan"]
-        restore = plan.index("- name: Restore existing workspace ownership")
-        checkout = plan.index("- name: Checkout repository")
+    for name, (job_name, image_variable) in workflows.items():
+        job = workflow_job_blocks(read_workflow(name))[job_name]
+        restore = job.index("- name: Restore existing workspace ownership")
+        checkout = job.index("- name: Checkout repository")
 
         assert restore < checkout
-        assert f"${{{{ vars.{image_variable} }}}}" in plan
-        assert '"${work_root}"/*/*' in plan
-        assert "@sha256:" in plan
-        assert "docker run --rm" in plan
-        assert "--user root" in plan
-        assert 'chown -R -- "${owner}" /workspace' in plan
+        assert f"${{{{ vars.{image_variable} }}}}" in job
+        assert '"${work_root}"/*/*' in job
+        assert "@sha256:" in job
+        assert "docker run --rm" in job
+        assert "--user root" in job
+        assert 'chown -R -- "${owner}" /workspace' in job
 
 
 def test_nightly_case_manifest_is_the_matrix_source_of_truth():
@@ -227,58 +223,29 @@ def test_training_scripts_only_contain_training_configuration():
         assert "curl " not in script
 
 
-def test_pr_workflow_has_four_clear_jobs_and_no_edit_trigger():
+def test_pr_workflow_uses_direct_path_filters_and_three_jobs():
     workflow = read_workflow("pr-test-hcu.yml")
     jobs = workflow_job_blocks(workflow)
 
-    assert list(jobs) == ["plan", "unit", "runtime", "finish"]
+    assert list(jobs) == ["unit", "runtime", "finish"]
     assert "pull_request_target:" in workflow
     assert "\n  pull_request:\n" not in workflow
     assert "      - edited\n" not in workflow
-    assert "github.event.pull_request.head.repo.full_name" in jobs["plan"]
-    assert "HCU execution authorized for" in jobs["plan"]
-    assert "github.event.pull_request.author_association" not in jobs["plan"]
-    assert "github.event.pull_request.head.sha" in workflow
-    assert "BASE_REPOSITORY: ${{ github.repository }}" in jobs["plan"]
-    assert 'git cat-file -e "${BASE_SHA}^{commit}"' in jobs["plan"]
-    assert '"${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"' in jobs[
-        "plan"
-    ]
-    assert "needs.plan.outputs.unit == 'true'" in jobs["unit"]
-    assert "needs.plan.outputs.runtime == 'true'" in jobs["runtime"]
-    assert "needs.unit.result == 'success'" in jobs["runtime"]
-    assert "tests/hcu/ci/plan_pr.py" in jobs["plan"]
-
-
-def test_pr_change_routing_preserves_runtime_and_unit_scopes():
-    planner = load_pr_planner()
-
-    assert planner.classify_paths(["docs/ci.md"])["profile"] == "none"
-    assert planner.classify_paths(["examples/train.py"])["profile"] == "none"
-    assert (
-        planner.classify_paths(["tests/special_sanity/test_import.py"])["profile"]
-        == "none"
-    )
-    assert (
-        planner.classify_paths(["tests/test_protocol_on_cpu.py"])["profile"] == "none"
-    )
-
-    unit = planner.classify_paths(["verl/trainer/main_ppo.py"])
-    assert unit["profile"] == "unit"
-    assert unit["unit"] is True
-    assert unit["runtime"] is False
-
-    for related_path in (
-        "hcu_verl/verl_adaptor.py",
-        "tests/hcu/pr/run_hcu_smoke.sh",
-        "third_party/verl",
-        ".gitmodules",
-        ".github/workflows/pr-test-hcu.yml",
+    for path in (
+        '      - "hcu_verl/**"',
+        '      - "tests/hcu/**"',
+        '      - ".github/workflows/pr-test-hcu.yml"',
+        '      - ".gitmodules"',
+        '      - "third_party/verl"',
     ):
-        runtime = planner.classify_paths([related_path])
-        assert runtime["profile"] == "runtime", related_path
-        assert runtime["unit"] is True, related_path
-        assert runtime["runtime"] is True, related_path
+        assert path in workflow
+    assert "github.event.pull_request.head.repo.full_name" in jobs["unit"]
+    assert "HCU execution authorized for" in jobs["unit"]
+    assert "github.event.pull_request.author_association" not in jobs["unit"]
+    assert "github.event.pull_request.head.sha" in workflow
+    assert "needs:\n      - unit" in jobs["runtime"]
+    assert "needs.plan" not in workflow
+    assert "tests/hcu/ci/plan_pr.py" not in workflow
     assert not (ROOT / ".github" / "workflows" / "hcu_unit_tests.yaml").exists()
 
 
@@ -348,43 +315,28 @@ def test_workflows_validate_only_their_own_configuration_profile():
     assert "check_environment.py config --profile nightly" in nightly_workflow
 
 
-def test_plan_jobs_use_python_from_the_pinned_ci_image():
-    workflows = {
-        "pr-test-hcu.yml": ("VERL_HCU_PR_IMAGE", "plan_pr.py"),
-        "nightly-test-hcu.yml": ("VERL_HCU_VLLM_IMAGE", "plan_nightly.py"),
+def test_nightly_plan_uses_python_from_the_pinned_ci_image():
+    plan = workflow_job_blocks(read_workflow("nightly-test-hcu.yml"))["plan"]
+
+    assert "VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}" in plan
+    assert "--network none" in plan
+    assert '--volume "${GITHUB_WORKSPACE}:/workspace:ro"' in plan
+    assert "--workdir /workspace" in plan
+    assert "python3 tests/hcu/ci/plan_nightly.py" in plan
+
+
+def test_hcu_workflows_use_bw1100_runners():
+    expected_jobs = {
+        "pr-test-hcu.yml": ("unit", "runtime", "finish"),
+        "nightly-test-hcu.yml": ("plan", "nightly", "finish"),
     }
 
-    for name, (image_variable, planner) in workflows.items():
-        plan = workflow_job_blocks(read_workflow(name))["plan"]
-
-        assert f"VERL_HCU_PLAN_IMAGE: ${{{{ vars.{image_variable} }}}}" in plan
-        assert "--network none" in plan
-        assert '--volume "${GITHUB_WORKSPACE}:/workspace:ro"' in plan
-        assert "--workdir /workspace" in plan
-        assert f"python3 tests/hcu/ci/{planner}" in plan
-
-    pr_plan = workflow_job_blocks(read_workflow("pr-test-hcu.yml"))["plan"]
-    assert "docker run --rm --interactive" in pr_plan
-    assert '--volume "${GITHUB_OUTPUT}:${GITHUB_OUTPUT}"' in pr_plan
-
-
-def test_hcu_workflows_use_general_runners_only_for_non_hcu_jobs():
-    expected_hcu_jobs = {
-        "pr-test-hcu.yml": ("unit", "runtime"),
-        "nightly-test-hcu.yml": ("nightly",),
-    }
-
-    for name, hcu_jobs in expected_hcu_jobs.items():
+    for name, job_names in expected_jobs.items():
         workflow = read_workflow(name)
         jobs = workflow_job_blocks(workflow)
 
         assert "ubuntu-latest" not in workflow
-        for job_name in ("plan", "finish"):
-            block = jobs[job_name]
-            assert "group: ci-general" in block
-            assert "labels: [self-hosted, ci, bw1100]" in block
-
-        for job_name in hcu_jobs:
+        for job_name in job_names:
             block = jobs[job_name]
             assert "group: ci-general" in block, job_name
             assert "labels: [self-hosted, ci, bw1100]" in block, job_name
@@ -400,9 +352,7 @@ def test_actionlint_knows_the_local_runner_label():
 
 
 def test_ci_readme_uses_shared_asset_roots():
-    readme = (ROOT / ".github" / "workflows" / "README.md").read_text(
-        encoding="utf-8"
-    )
+    readme = (ROOT / ".github" / "workflows" / "README.md").read_text(encoding="utf-8")
 
     assert "VERL_HCU_MODEL_ROOT=/ci_public/verl-das/models" in readme
     assert "VERL_HCU_DATA_ROOT=/ci_public/verl-das/data" in readme
@@ -417,7 +367,6 @@ def test_ci_support_scripts_and_case_launchers_live_under_hcu_tests():
         HCU_TEST_DIR / "ci" / "cleanup_container.sh",
         HCU_TEST_DIR / "ci" / "exec_container.sh",
         HCU_TEST_DIR / "ci" / "plan_nightly.py",
-        HCU_TEST_DIR / "ci" / "plan_pr.py",
         HCU_TEST_DIR / "ci" / "prepare_workspace.sh",
         HCU_TEST_DIR / "ci" / "start_container.sh",
         HCU_TEST_DIR / "ci" / "verify_submodules.py",
@@ -498,17 +447,16 @@ def test_pr_vllm_case_remains_a_bounded_real_training_step():
     assert "trainer.total_training_steps=1" in script
 
 
-def test_finish_jobs_keep_strict_skip_and_success_semantics():
+def test_finish_jobs_keep_strict_success_semantics():
     pr_finish = workflow_job_blocks(read_workflow("pr-test-hcu.yml"))["finish"]
     nightly_finish = workflow_job_blocks(read_workflow("nightly-test-hcu.yml"))[
         "finish"
     ]
 
-    assert '[[ "${PLAN_RESULT}" == "success" ]]' in pr_finish
     assert '[[ "${UNIT_RESULT}" == "success" ]]' in pr_finish
-    assert '[[ "${UNIT_RESULT}" == "skipped" ]]' in pr_finish
     assert '[[ "${RUNTIME_RESULT}" == "success" ]]' in pr_finish
-    assert '[[ "${RUNTIME_RESULT}" == "skipped" ]]' in pr_finish
+    assert "PLAN_RESULT" not in pr_finish
+    assert '== "skipped"' not in pr_finish
     assert '[[ "${PLAN_RESULT}" == "success" ]]' in nightly_finish
     assert '[[ "${NIGHTLY_RESULT}" == "success" ]]' in nightly_finish
 

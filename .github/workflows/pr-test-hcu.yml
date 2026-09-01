@@ -9,6 +9,12 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+    paths:
+      - "hcu_verl/**"
+      - "tests/hcu/**"
+      - ".github/workflows/pr-test-hcu.yml"
+      - ".gitmodules"
+      - "third_party/verl"
   workflow_dispatch:
 
 concurrency:
@@ -19,16 +25,24 @@ permissions:
   contents: read
 
 jobs:
-  plan:
-    name: Plan HCU tests
+  unit:
+    name: HCU unit and upstream tests
     runs-on:
       group: ci-general
       labels: [self-hosted, ci, bw1100]
-    timeout-minutes: 10
-    outputs:
-      profile: ${{ steps.changes.outputs.profile }}
-      runtime: ${{ steps.changes.outputs.runtime }}
-      unit: ${{ steps.changes.outputs.unit }}
+    timeout-minutes: 90
+    env:
+      VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_RUN_ID: unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_LOG_DIR: ci-logs/unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+      VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
+      VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
+      GLOG_minloglevel: 3
+      PYTHONWARNINGS: ignore
+      TORCH_CPP_LOG_LEVEL: fatal
+      TRANSFORMERS_VERBOSITY: error
+      VLLM_CUDART_SO_PATH: /opt/dtk/hip/lib/libgalaxyhip.so
     steps:
       - name: Restore existing workspace ownership
         shell: bash
@@ -84,42 +98,11 @@ jobs:
           submodules: false
           clean: true
 
-      - name: Classify changed paths
-        id: changes
-        shell: bash
-        env:
-          BASE_REPOSITORY: ${{ github.repository }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${BASE_SHA}" ]]; then
-            BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
-          fi
-          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 \
-              "${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"
-          fi
-          git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" |
-            docker run --rm --interactive \
-              --user "$(id -u):$(id -g)" \
-              --network none \
-              --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
-              --volume "${GITHUB_OUTPUT}:${GITHUB_OUTPUT}" \
-              --workdir /workspace \
-              "${VERL_HCU_PLAN_IMAGE}" \
-              python3 tests/hcu/ci/plan_pr.py \
-              --github-output "${GITHUB_OUTPUT}"
-
       - name: Validate HCU configuration
-        if: steps.changes.outputs.runtime == 'true' || steps.changes.outputs.unit == 'true'
         env:
           VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
           VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
           VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
-          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
         shell: bash
         run: |
           set -euo pipefail
@@ -132,46 +115,14 @@ jobs:
             --env VERL_HCU_DATA_ROOT \
             --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
             --workdir /workspace \
-            "${VERL_HCU_PLAN_IMAGE}" \
+            "${VERL_HCU_CI_IMAGE}" \
             python3 tests/hcu/ci/check_environment.py config --profile pr
-
-  unit:
-    name: HCU unit and upstream tests
-    needs:
-      - plan
-    if: needs.plan.outputs.unit == 'true'
-    runs-on:
-      group: ci-general
-      labels: [self-hosted, ci, bw1100]
-    timeout-minutes: 90
-    env:
-      VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_RUN_ID: unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_LOG_DIR: ci-logs/unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
-      VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
-      VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
-      GLOG_minloglevel: 3
-      PYTHONWARNINGS: ignore
-      TORCH_CPP_LOG_LEVEL: fatal
-      TRANSFORMERS_VERBOSITY: error
-      VLLM_CUDART_SO_PATH: /opt/dtk/hip/lib/libgalaxyhip.so
-    steps:
-      - name: Checkout repository and fixed submodules
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-          submodules: false
-          clean: true
 
       - name: Start HCU unit container
         shell: bash
         run: bash tests/hcu/ci/start_container.sh
 
       - name: Run pinned upstream sanity and CPU tests
-        if: needs.plan.outputs.runtime == 'true'
         timeout-minutes: 10
         shell: bash
         run: >-
@@ -209,9 +160,7 @@ jobs:
   runtime:
     name: HCU smoke and vLLM one-step
     needs:
-      - plan
       - unit
-    if: needs.plan.outputs.runtime == 'true' && needs.unit.result == 'success'
     runs-on:
       group: ci-general
       labels: [self-hosted, ci, bw1100]
@@ -275,7 +224,6 @@ jobs:
     name: Finish
     if: always()
     needs:
-      - plan
       - unit
       - runtime
     runs-on:
@@ -286,34 +234,17 @@ jobs:
       - name: Evaluate required jobs
         shell: bash
         env:
-          RUNTIME_CHANGED: ${{ needs.plan.outputs.runtime }}
-          UNIT_CHANGED: ${{ needs.plan.outputs.unit }}
-          TEST_PROFILE: ${{ needs.plan.outputs.profile }}
-          PLAN_RESULT: ${{ needs.plan.result }}
           UNIT_RESULT: ${{ needs.unit.result }}
           RUNTIME_RESULT: ${{ needs.runtime.result }}
         run: |
           set -euo pipefail
 
-          [[ "${PLAN_RESULT}" == "success" ]]
-          if [[ "${UNIT_CHANGED}" == "true" ]]; then
-            [[ "${UNIT_RESULT}" == "success" ]]
-          else
-            [[ "${UNIT_RESULT}" == "skipped" ]]
-          fi
-          if [[ "${RUNTIME_CHANGED}" == "true" ]]; then
-            [[ "${RUNTIME_RESULT}" == "success" ]]
-          else
-            [[ "${RUNTIME_RESULT}" == "skipped" ]]
-          fi
+          [[ "${UNIT_RESULT}" == "success" ]]
+          [[ "${RUNTIME_RESULT}" == "success" ]]
 
           {
             echo "## HCU PR gate"
             echo
-            echo "- selected profile: ${TEST_PROFILE}"
-            echo "- runtime changed: ${RUNTIME_CHANGED}"
-            echo "- unit-test paths changed: ${UNIT_CHANGED}"
-            echo "- plan: ${PLAN_RESULT}"
             echo "- unit and upstream tests: ${UNIT_RESULT}"
             echo "- smoke and vLLM one-step: ${RUNTIME_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"
