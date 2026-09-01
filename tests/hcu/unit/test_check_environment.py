@@ -23,7 +23,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_environment.py"
 CONFIG_ENV_VARS = (
-    "VERL_HCU_CI_IMAGE",
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
 )
@@ -39,7 +38,6 @@ def load_module():
 
 def config_environment() -> dict[str, str]:
     return {
-        "VERL_HCU_CI_IMAGE": "registry.example/verl:ci",
         "VERL_HCU_MODEL_ROOT": "/configuration/host/models",
         "VERL_HCU_DATA_ROOT": "/configuration/host/data",
     }
@@ -193,3 +191,19 @@ def test_runtime_cli_does_not_require_unmounted_data_roots():
 
     assert result.returncode == 0
     assert "runtime validation passed" in result.stdout
+
+
+def test_config_cli_accepts_legacy_profile_argument():
+    environment = os.environ.copy()
+    environment.update(config_environment())
+
+    result = subprocess.run(
+        [sys.executable, str(MODULE_PATH), "config", "--profile", "pr"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+    )
+
+    assert result.returncode == 0
+    assert "config validation passed" in result.stdout

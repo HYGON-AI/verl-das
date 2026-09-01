@@ -19,7 +19,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 CONFIG_ENV_VARS = (
-    "VERL_HCU_CI_IMAGE",
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
 )
@@ -78,9 +77,14 @@ def build_parser() -> argparse.ArgumentParser:
         description="Validate the verl-das HCU CI environment."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser(
+    config_parser = subparsers.add_parser(
         "config",
         help="validate repository-level HCU CI variables",
+    )
+    config_parser.add_argument(
+        "--profile",
+        choices=("pr", "nightly", "all"),
+        help=argparse.SUPPRESS,
     )
     runtime_parser = subparsers.add_parser(
         "runtime",

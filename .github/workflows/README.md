@@ -20,8 +20,8 @@ explicitly when the environment changes:
 registry.example.com/project/image:version-tag
 ```
 
-Both configuration checks require the fixed CI image, model root, and dataset
-root because the model tests use local assets from the shared runner storage.
+The workflows validate the fixed image before starting Docker. Their shared
+configuration check validates the model and dataset roots used by model tests.
 
 All HCU CI assets use the runner-shared directory:
 
