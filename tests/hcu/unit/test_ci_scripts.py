@@ -65,11 +65,11 @@ def test_hcu_sources_follow_header_policy():
         assert COPYRIGHT in text, path
         assert "Licensed under the Apache License, Version 2.0" in text, path
     for path in shell_files:
-        text = path.read_text(encoding="utf-8")
-        assert "set -euo pipefail" in text, path
+        script = path.read_text(encoding="utf-8")
+        assert "set -euo pipefail" in script, path
+        assert "Copyright" not in script, path
         assert not any(
-            marker in text
-            for marker in ("Copyright", "SPDX-License-Identifier", "Licensed under")
+            marker in script for marker in ("SPDX-License-Identifier", "Licensed under")
         ), path
 
 
