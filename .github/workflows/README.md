@@ -45,10 +45,10 @@ entry. Manual runs accept `all`, an engine name, an exact case ID, or a
 comma-separated selection.
 
 The runner must provide Docker, `/opt/hyhal`, and the model and dataset roots
-configured above. Runtime dependencies belong in the pinned images. The only
-PR-time installation is the fixed `TransferQueue==0.1.9` package immediately
-before the HCU unit suite; the runtime lane still uses the original image
-environment.
+configured above. Runtime dependencies belong in the pinned images. The PR
+unit lane installs its optional Python dependencies before the suite. The vLLM
+launcher also installs the fixed `TransferQueue==0.1.9` package when the pinned
+runtime image does not already provide it.
 
 HCU containers are started and removed explicitly inside each test job. The
 cleanup step stops only resources carrying the current CI run ID, restores the

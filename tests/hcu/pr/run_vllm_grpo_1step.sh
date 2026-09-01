@@ -31,6 +31,9 @@ trap 'exit 143' TERM
 # shellcheck disable=SC1091
 source "${CI_DIR}/prepare_workspace.sh"
 python3 "${CI_DIR}/check_environment.py" runtime --require-data-roots --require-gpus 8
+if ! python3 -c 'import transfer_queue' >/dev/null 2>&1; then
+    python3 -m pip install --no-cache-dir TransferQueue==0.1.9
+fi
 
 model_path="${VERL_HCU_MODEL_ROOT}/qwen2.5/Qwen2.5-0.5B-Instruct"
 train_file="${VERL_HCU_DATA_ROOT}/gsm8k/train.parquet"
