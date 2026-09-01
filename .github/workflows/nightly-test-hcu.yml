@@ -19,7 +19,6 @@ permissions:
   contents: read
 
 env:
-  VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
   VERL_HCU_VLLM_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
   VERL_HCU_SGLANG_IMAGE: ${{ vars.VERL_HCU_SGLANG_IMAGE }}
   VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
@@ -35,18 +34,17 @@ jobs:
   plan:
     name: Plan nightly cases
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.cases.outputs.matrix }}
       selected: ${{ steps.cases.outputs.selected }}
-    env:
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
     steps:
       - name: Restore existing workspace ownership
         shell: bash
+        env:
+          VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
@@ -72,6 +70,7 @@ jobs:
           fi
 
           docker run --rm \
+            --user root \
             --volume "${workspace}:/workspace" \
             "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
@@ -84,20 +83,40 @@ jobs:
           clean: true
 
       - name: Validate nightly configuration
-        run: >-
-          "${HOME}/.local/bin/python3.10"
-          tests/hcu/ci/check_environment.py config --profile nightly
+        shell: bash
+        env:
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --env VERL_HCU_VLLM_IMAGE \
+            --env VERL_HCU_SGLANG_IMAGE \
+            --env VERL_HCU_MODEL_ROOT \
+            --env VERL_HCU_DATA_ROOT \
+            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+            --workdir /workspace \
+            "${VERL_HCU_PLAN_IMAGE}" \
+            python3 tests/hcu/ci/check_environment.py config --profile nightly
 
       - name: Build nightly matrix
         id: cases
         shell: bash
         env:
           SELECTED_CASE: ${{ inputs.test_case || 'all' }}
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_VLLM_IMAGE }}
         run: |
           set -euo pipefail
 
-          matrix="$("${HOME}/.local/bin/python3.10" \
-            tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
+          matrix="$(docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+            --workdir /workspace \
+            "${VERL_HCU_PLAN_IMAGE}" \
+            python3 tests/hcu/ci/plan_nightly.py --select "${SELECTED_CASE}")"
           echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
           echo "selected=${SELECTED_CASE}" >> "${GITHUB_OUTPUT}"
           echo "Nightly matrix: ${matrix}"
@@ -108,9 +127,8 @@ jobs:
       - plan
     if: needs.plan.result == 'success'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
@@ -179,9 +197,8 @@ jobs:
       - plan
       - nightly
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 5
     steps:
       - name: Evaluate nightly jobs

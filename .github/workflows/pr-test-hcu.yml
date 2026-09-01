@@ -22,30 +22,18 @@ jobs:
   plan:
     name: Plan HCU tests
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 10
     outputs:
       profile: ${{ steps.changes.outputs.profile }}
       runtime: ${{ steps.changes.outputs.runtime }}
       unit: ${{ steps.changes.outputs.unit }}
-    env:
-      VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
     steps:
-      - name: Authorize PR source
-        if: github.event_name == 'pull_request_target'
-        shell: bash
-        env:
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          BASE_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          echo "HCU execution authorized for ${HEAD_REPOSITORY} targeting ${BASE_REPOSITORY}."
-
       - name: Restore existing workspace ownership
         shell: bash
+        env:
+          VERL_HCU_CI_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
         run: |
           set -euo pipefail
 
@@ -71,9 +59,21 @@ jobs:
           fi
 
           docker run --rm \
+            --user root \
             --volume "${workspace}:/workspace" \
             "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
+
+      - name: Authorize PR source
+        if: github.event_name == 'pull_request_target'
+        shell: bash
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "HCU execution authorized for ${HEAD_REPOSITORY} targeting ${BASE_REPOSITORY}."
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -88,28 +88,52 @@ jobs:
         id: changes
         shell: bash
         env:
+          BASE_REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
         run: |
           set -euo pipefail
 
           if [[ -z "${BASE_SHA}" ]]; then
             BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
           fi
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 \
+              "${GITHUB_SERVER_URL}/${BASE_REPOSITORY}.git" "${BASE_SHA}"
+          fi
           git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" |
-            "${HOME}/.local/bin/python3.10" tests/hcu/ci/plan_pr.py \
+            docker run --rm --interactive \
+              --user "$(id -u):$(id -g)" \
+              --network none \
+              --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+              --volume "${GITHUB_OUTPUT}:${GITHUB_OUTPUT}" \
+              --workdir /workspace \
+              "${VERL_HCU_PLAN_IMAGE}" \
+              python3 tests/hcu/ci/plan_pr.py \
               --github-output "${GITHUB_OUTPUT}"
 
       - name: Validate HCU configuration
         if: steps.changes.outputs.runtime == 'true' || steps.changes.outputs.unit == 'true'
         env:
-          VERL_HCU_CI_RUNNER_LABEL: ${{ vars.VERL_HCU_CI_RUNNER_LABEL }}
           VERL_HCU_PR_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
           VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
           VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
-        run: >-
-          "${HOME}/.local/bin/python3.10"
-          tests/hcu/ci/check_environment.py config --profile pr
+          VERL_HCU_PLAN_IMAGE: ${{ vars.VERL_HCU_PR_IMAGE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --env VERL_HCU_PR_IMAGE \
+            --env VERL_HCU_MODEL_ROOT \
+            --env VERL_HCU_DATA_ROOT \
+            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
+            --workdir /workspace \
+            "${VERL_HCU_PLAN_IMAGE}" \
+            python3 tests/hcu/ci/check_environment.py config --profile pr
 
   unit:
     name: HCU unit and upstream tests
@@ -117,9 +141,8 @@ jobs:
       - plan
     if: needs.plan.outputs.unit == 'true'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 90
     env:
       VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
@@ -190,9 +213,8 @@ jobs:
       - unit
     if: needs.plan.outputs.runtime == 'true' && needs.unit.result == 'success'
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 60
     env:
       VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-runtime-${{ github.run_id }}-${{ github.run_attempt }}
@@ -257,9 +279,8 @@ jobs:
       - unit
       - runtime
     runs-on:
-      - self-hosted
-      - bw1000
-      - ${{ vars.VERL_HCU_CI_RUNNER_LABEL || 'hcu-ci-unconfigured' }}
+      group: ci-general
+      labels: [self-hosted, ci, bw1100]
     timeout-minutes: 5
     steps:
       - name: Evaluate required jobs

@@ -23,7 +23,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_environment.py"
 CONFIG_ENV_VARS = (
-    "VERL_HCU_CI_RUNNER_LABEL",
     "VERL_HCU_PR_IMAGE",
     "VERL_HCU_VLLM_IMAGE",
     "VERL_HCU_SGLANG_IMAGE",
@@ -36,13 +35,11 @@ IMAGE_ENV_VARS = (
     "VERL_HCU_SGLANG_IMAGE",
 )
 PR_CONFIG_ENV_VARS = (
-    "VERL_HCU_CI_RUNNER_LABEL",
     "VERL_HCU_PR_IMAGE",
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
 )
 NIGHTLY_CONFIG_ENV_VARS = (
-    "VERL_HCU_CI_RUNNER_LABEL",
     "VERL_HCU_VLLM_IMAGE",
     "VERL_HCU_SGLANG_IMAGE",
     "VERL_HCU_MODEL_ROOT",
@@ -61,7 +58,6 @@ def load_module():
 def config_environment() -> dict[str, str]:
     digest = "@sha256:" + "a" * 64
     return {
-        "VERL_HCU_CI_RUNNER_LABEL": "hcu-8gpu",
         "VERL_HCU_PR_IMAGE": "registry.example/pr" + digest,
         "VERL_HCU_VLLM_IMAGE": "registry.example/vllm" + digest,
         "VERL_HCU_SGLANG_IMAGE": "registry.example/sglang" + digest,
