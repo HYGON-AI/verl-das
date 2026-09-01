@@ -4,6 +4,7 @@
 [submodule "third_party/verl"]
 	path = third_party/verl
 	url = https://github.com/verl-project/verl.git
+	branch = release/v0.9.0
 [submodule "third_party/VeOmni"]
 	path = third_party/VeOmni
 	url = https://github.com/ByteDance-Seed/VeOmni.git

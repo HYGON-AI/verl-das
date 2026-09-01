@@ -16,6 +16,7 @@ do
     fi
 done
 
+# dependency: vllm==0.25.1, transformers==5.12.1
 CURRENT_DIR=$( cd $( dirname $0 ) && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 NNODES=$( (awk '{print $1}' ${host_file} | sort -u | wc -l) || echo 1 )

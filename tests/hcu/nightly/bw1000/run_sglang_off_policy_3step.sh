@@ -10,6 +10,7 @@ mcore_model_path=${mcore_model_path:-${VERL_HCU_DATA_ROOT}}
 export PYTHONWARNINGS=ignore
 export TRANSFORMERS_VERBOSITY=error
 export VLLM_CUDART_SO_PATH=/opt/dtk/hip/lib/libgalaxyhip.so
+export SGLANG_USE_TRITON_VLLM_FA=1
 
 # ===================================== Data Config =====================================
 train_file=${data_path}/gsm8k/train.parquet

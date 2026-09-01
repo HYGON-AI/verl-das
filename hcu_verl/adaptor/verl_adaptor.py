@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.training import print_rank_0
+from hcu_verl.common_utils import print_only_rank0
 
 class VerlAdaptation:
 
     _patch_info_collection = {}
     _args = None
+
 
     @classmethod
     def execute(cls):
@@ -26,6 +27,7 @@ class VerlAdaptation:
         """
         CoreAdaptation().execute()
         VerlAdaptation.apply()
+
     
     @classmethod
     def register(cls, orig_func_name, new_func=None, force_patch=False, create_dummy=False, apply_wrapper=False, remove_origin_wrappers=False):
@@ -49,6 +51,7 @@ class VerlAdaptation:
                 remove_origin_wrappers=remove_origin_wrappers
             )
 
+
     @classmethod
     def apply(cls):
         """
@@ -56,6 +59,7 @@ class VerlAdaptation:
         """
         for patch in cls._patch_info_collection.values():
             patch.apply_patch()
+
 
     @classmethod
     def post_execute(cls):
@@ -69,28 +73,26 @@ class CoreAdaptation:
     def execute(self):
         self.verl_hcu_wrapper()
         self.megatron_hcu_wrapper()
-    
+
+
     def verl_hcu_wrapper(self):
+        # verl.plugin
+        from ..plugin.platform.platform_rocm import rollout_env_vars
+        VerlAdaptation.register('verl.plugin.platform.platform_rocm.PlatformROCm.rollout_env_vars',
+                                rollout_env_vars)
+
+
         # verl.trainer
         from ..trainer.constants_ppo import PPO_RAY_RUNTIME_ENV
         VerlAdaptation.register('verl.trainer.constants_ppo.PPO_RAY_RUNTIME_ENV',
                                 PPO_RAY_RUNTIME_ENV)
+
 
         # verl.utils
         from ..utils.flops_counter import _DEVICE_FLOPS
         VerlAdaptation.register('verl.utils.flops_counter._DEVICE_FLOPS',
                                 _DEVICE_FLOPS)
 
-        # TODO: This patch will be removed in next verl version
-        from ..utils.megatron_utils import get_model
-        VerlAdaptation.register('verl.utils.megatron_utils.get_model',
-                                get_model)
-
-        # TODO: This patch will be removed in vllm >= v0.19.1
-        # verl.workers.rollout.vllm_rollout
-        from ..workers.rollout.vllm_rollout.utils import get_device_uuid
-        VerlAdaptation.register('verl.workers.rollout.vllm_rollout.utils.get_device_uuid',
-                                get_device_uuid)
 
     def megatron_hcu_wrapper(self):
         # megatron core
@@ -100,4 +102,5 @@ class CoreAdaptation:
 
 
 VerlAdaptation.execute()
-print_rank_0("[HCU_ADAPT] Patch has been applied in worker")
+
+print_only_rank0("[HCU_ADAPT] Patch has been applied in worker")

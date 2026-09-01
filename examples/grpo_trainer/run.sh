@@ -6,6 +6,17 @@ do
     fi
 done
 
+# These variables should be modified
+export NET_TYPE="" # please choose one of {mlnx, shca}.
+PORT="" # The port which you set in your docker when using multinode
+HOST_FILE=""
+DATA_PATH=""
+HF_MODEL_PATH=""
+MCORE_MODEL_PATH=""
+PROFILING="" # If you want to profiling, please choose one of {torch}
+
+
+# These variables should not be modified
 CURRENT_DIR=$( cd "$( dirname "$0" )" && pwd )
 VERL_PATH=$( dirname $( dirname ${CURRENT_DIR}))
 SAVE_CKPT_PATH=${VERL_PATH}/examples/grpo_trainer
@@ -104,14 +115,6 @@ elif [[ ${model_name} == "moonlight_16b_a3b_megatron_vllm" ]]; then
     )
 fi
 
-# These variables should be modified
-export NET_TYPE="" # please choose one of {mlnx, shca}.
-PORT="" # The port which you set in your docker
-HOST_FILE=""
-DATA_PATH=""
-HF_MODEL_PATH=""
-MCORE_MODEL_PATH=""
-PROFILING="" # If you want to profiling, please choose one of {torch}
 
 # pstart ray
 head_ip=$(awk '{print $1}' ${HOST_FILE} | head -n 1)
