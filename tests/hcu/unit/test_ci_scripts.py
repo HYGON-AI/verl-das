@@ -179,8 +179,11 @@ def test_workflows_use_container_python_and_managed_cleanup():
     workflows = pr_workflow + nightly_workflow
 
     assert "actions/setup-python" not in workflows
-    assert "check_environment.py config --profile pr" in pr_workflow
-    assert "check_environment.py config --profile nightly" in nightly_workflow
+    assert "check_environment.py config" in pr_workflow
+    assert "check_environment.py config" in nightly_workflow
+    assert "--profile" not in workflows
+    assert "VERL_HCU_CI_IMAGE" in pr_workflow
+    assert "VERL_HCU_CI_IMAGE" in nightly_workflow
     for workflow in (pr_workflow, nightly_workflow):
         assert "tests/hcu/ci/start_container.sh" in workflow
         assert "tests/hcu/ci/cleanup_container.sh" in workflow

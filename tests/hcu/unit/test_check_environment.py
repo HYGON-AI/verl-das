@@ -23,20 +23,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tests" / "hcu" / "ci" / "check_environment.py"
 CONFIG_ENV_VARS = (
-    "VERL_HCU_PR_IMAGE",
-    "VERL_HCU_VLLM_IMAGE",
-    "VERL_HCU_SGLANG_IMAGE",
-    "VERL_HCU_MODEL_ROOT",
-    "VERL_HCU_DATA_ROOT",
-)
-PR_CONFIG_ENV_VARS = (
-    "VERL_HCU_PR_IMAGE",
-    "VERL_HCU_MODEL_ROOT",
-    "VERL_HCU_DATA_ROOT",
-)
-NIGHTLY_CONFIG_ENV_VARS = (
-    "VERL_HCU_VLLM_IMAGE",
-    "VERL_HCU_SGLANG_IMAGE",
+    "VERL_HCU_CI_IMAGE",
     "VERL_HCU_MODEL_ROOT",
     "VERL_HCU_DATA_ROOT",
 )
@@ -52,9 +39,7 @@ def load_module():
 
 def config_environment() -> dict[str, str]:
     return {
-        "VERL_HCU_PR_IMAGE": "registry.example/verl:pr",
-        "VERL_HCU_VLLM_IMAGE": "registry.example/verl:vllm",
-        "VERL_HCU_SGLANG_IMAGE": "registry.example/verl:sglang",
+        "VERL_HCU_CI_IMAGE": "registry.example/verl:ci",
         "VERL_HCU_MODEL_ROOT": "/configuration/host/models",
         "VERL_HCU_DATA_ROOT": "/configuration/host/data",
     }
@@ -75,61 +60,12 @@ def test_config_inventory_is_exact():
     module = load_module()
 
     assert module.CONFIG_ENV_VARS == CONFIG_ENV_VARS
-    assert module.CONFIG_PROFILES == {
-        "pr": PR_CONFIG_ENV_VARS,
-        "nightly": NIGHTLY_CONFIG_ENV_VARS,
-        "all": CONFIG_ENV_VARS,
-    }
 
 
 def test_validate_config_accepts_nonexistent_host_paths():
     module = load_module()
 
     assert module.validate_config(config_environment()) == []
-
-
-def test_validate_pr_config_does_not_require_nightly_images():
-    module = load_module()
-    environment = {
-        name: value
-        for name, value in config_environment().items()
-        if name in PR_CONFIG_ENV_VARS
-    }
-
-    assert module.validate_config(environment, profile="pr") == []
-
-
-def test_validate_nightly_config_does_not_require_pr_image():
-    module = load_module()
-    environment = {
-        name: value
-        for name, value in config_environment().items()
-        if name in NIGHTLY_CONFIG_ENV_VARS
-    }
-
-    assert module.validate_config(environment, profile="nightly") == []
-
-
-@pytest.mark.parametrize("name", PR_CONFIG_ENV_VARS)
-def test_validate_pr_config_requires_only_pr_variables(name):
-    module = load_module()
-    environment = config_environment()
-    environment[name] = " "
-
-    errors = module.validate_config(environment, profile="pr")
-
-    assert f"{name} is required" in errors
-
-
-@pytest.mark.parametrize("name", NIGHTLY_CONFIG_ENV_VARS)
-def test_validate_nightly_config_requires_nightly_variables(name):
-    module = load_module()
-    environment = config_environment()
-    environment[name] = " "
-
-    errors = module.validate_config(environment, profile="nightly")
-
-    assert f"{name} is required" in errors
 
 
 @pytest.mark.parametrize("name", CONFIG_ENV_VARS)
@@ -233,43 +169,6 @@ def test_cli_subcommands_accept_valid_environment(tmp_path, command):
 
     assert result.returncode == 0
     assert f"{command} validation passed" in result.stdout
-
-
-@pytest.mark.parametrize(
-    ("profile", "required_names"),
-    (
-        ("pr", PR_CONFIG_ENV_VARS),
-        ("nightly", NIGHTLY_CONFIG_ENV_VARS),
-    ),
-)
-def test_config_cli_accepts_profile_specific_environment(profile, required_names):
-    environment = os.environ.copy()
-    environment.update(
-        {
-            name: value
-            for name, value in config_environment().items()
-            if name in required_names
-        }
-    )
-    for name in set(CONFIG_ENV_VARS) - set(required_names):
-        environment.pop(name, None)
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(MODULE_PATH),
-            "config",
-            "--profile",
-            profile,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=environment,
-    )
-
-    assert result.returncode == 0
-    assert "config validation passed" in result.stdout
 
 
 def test_runtime_cli_does_not_require_unmounted_data_roots():

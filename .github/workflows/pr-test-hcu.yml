@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 env:
-  VERL_HCU_PR_IMAGE: >-
+  VERL_HCU_CI_IMAGE: >-
     harbor.sourcefind.cn:5443/dcu/admin/base/custom:verl-das-vllm0.25.1-ubuntu22.04-dtk2604-py3.10-20260825-0031
 
 jobs:
@@ -68,15 +68,15 @@ jobs:
             echo "ERROR: unsafe runner ownership: ${owner}" >&2
             exit 1
           fi
-          if [[ -z "${VERL_HCU_PR_IMAGE}" ]]; then
-            echo "ERROR: VERL_HCU_PR_IMAGE is required" >&2
+          if [[ -z "${VERL_HCU_CI_IMAGE}" ]]; then
+            echo "ERROR: VERL_HCU_CI_IMAGE is required" >&2
             exit 1
           fi
 
           docker run --rm \
             --user root \
             --volume "${workspace}:/workspace" \
-            "${VERL_HCU_PR_IMAGE}" \
+            "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
 
       - name: Authorize PR source
@@ -110,18 +110,16 @@ jobs:
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             --network none \
-            --env VERL_HCU_PR_IMAGE \
+            --env VERL_HCU_CI_IMAGE \
             --env VERL_HCU_MODEL_ROOT \
             --env VERL_HCU_DATA_ROOT \
             --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
             --workdir /workspace \
-            "${VERL_HCU_PR_IMAGE}" \
-            python3 tests/hcu/ci/check_environment.py config --profile pr
+            "${VERL_HCU_CI_IMAGE}" \
+            python3 tests/hcu/ci/check_environment.py config
 
       - name: Start HCU unit container
         shell: bash
-        env:
-          VERL_HCU_CI_IMAGE: ${{ env.VERL_HCU_PR_IMAGE }}
         run: bash tests/hcu/ci/start_container.sh
 
       - name: Run pinned upstream sanity and CPU tests
@@ -185,8 +183,6 @@ jobs:
 
       - name: Start HCU runtime container
         shell: bash
-        env:
-          VERL_HCU_CI_IMAGE: ${{ env.VERL_HCU_PR_IMAGE }}
         run: bash tests/hcu/ci/start_container.sh
 
       - name: Run HCU smoke

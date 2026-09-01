@@ -9,23 +9,19 @@ Configure these variables before enabling the workflows:
 
 | Variable | Purpose |
 | --- | --- |
-| `VERL_HCU_SGLANG_IMAGE` | HCU image used by the SGLang nightly job |
 | `VERL_HCU_MODEL_ROOT` | Read-only model root mounted into PR E2E and nightly containers |
 | `VERL_HCU_DATA_ROOT` | Parent of the read-only `gsm8k/` dataset directory used by PR E2E and nightly jobs |
 
-The PR and vLLM image tags are defined once in their workflow `env` blocks.
-The SGLang image remains a repository variable because it uses a separate
-runtime. Use fixed version tags and update them explicitly when the environment
-changes:
+One fixed `VERL_HCU_CI_IMAGE` tag is defined in each workflow `env` block and
+is shared by PR, nightly vLLM, and nightly SGLang jobs. Update the fixed tag
+explicitly when the environment changes:
 
 ```text
 registry.example.com/project/image:version-tag
 ```
 
-The PR configuration check requires the PR image, model root, and dataset
-root because the PR gate includes a real one-step training case. Nightly
-configuration additionally requires the vLLM and SGLang images plus the model
-and dataset roots.
+Both configuration checks require the fixed CI image, model root, and dataset
+root because the model tests use local assets from the shared runner storage.
 
 All HCU CI assets use the runner-shared directory:
 
