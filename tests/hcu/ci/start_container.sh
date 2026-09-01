@@ -61,6 +61,8 @@ for name in \
     VERL_HCU_CI_RUN_ID \
     VERL_HCU_CI_LOG_DIR \
     VERL_HCU_CI_TMP_ROOT \
+    VERL_HCU_SOURCE_REPOSITORY \
+    VERL_HCU_SOURCE_SHA \
     VERL_HCU_MODEL_ROOT \
     VERL_HCU_DATA_ROOT \
     HF_HUB_OFFLINE \
@@ -98,4 +100,31 @@ docker run --detach \
     sleep infinity
 
 docker exec "${container}" git config --global --add safe.directory /workspace
+
+if [[ ! -e "${workspace}/.git" ]]; then
+    source_repository="${VERL_HCU_SOURCE_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
+    source_sha="${VERL_HCU_SOURCE_SHA:-${GITHUB_SHA:-}}"
+    if [[ ! "${source_repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+        echo "ERROR: unsafe source repository: ${source_repository}" >&2
+        exit 1
+    fi
+    if [[ ! "${source_sha}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        echo "ERROR: unsafe source SHA: ${source_sha}" >&2
+        exit 1
+    fi
+
+    docker exec \
+        --env "VERL_HCU_SOURCE_REPOSITORY=${source_repository}" \
+        --env "VERL_HCU_SOURCE_SHA=${source_sha}" \
+        "${container}" \
+        bash -euo pipefail -c '
+            git -C /workspace init
+            git -C /workspace remote add origin \
+                "https://github.com/${VERL_HCU_SOURCE_REPOSITORY}.git"
+            git -C /workspace fetch --no-tags --depth=1 \
+                origin "${VERL_HCU_SOURCE_SHA}"
+            git -C /workspace reset --hard FETCH_HEAD
+        '
+fi
+
 echo "Started HCU CI container ${container}."
