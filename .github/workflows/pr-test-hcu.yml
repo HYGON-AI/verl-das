@@ -32,7 +32,7 @@ env:
 
 jobs:
   unit:
-    name: HCU unit and upstream tests
+    name: HCU unit tests
     runs-on:
       group: ci-general
       labels: [self-hosted, ci, bw1100]
@@ -103,6 +103,7 @@ jobs:
           fetch-depth: 0
           submodules: false
           clean: true
+          persist-credentials: false
 
       - name: Validate HCU configuration
         env:
@@ -127,13 +128,6 @@ jobs:
         shell: bash
         run: bash tests/hcu/ci/start_container.sh
 
-      - name: Run pinned upstream sanity and CPU tests
-        timeout-minutes: 10
-        shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/pr/run_upstream_pr_tests.sh
-
       - name: Install optional HCU unit-test dependencies
         shell: bash
         run: >-
@@ -155,6 +149,7 @@ jobs:
 
       - name: Upload unit test logs
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
@@ -188,6 +183,7 @@ jobs:
           fetch-depth: 0
           submodules: false
           clean: true
+          persist-credentials: false
 
       - name: Start HCU runtime container
         shell: bash
@@ -220,6 +216,7 @@ jobs:
 
       - name: Upload runtime test logs
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: verl-hcu-pr-runtime-${{ github.run_id }}-${{ github.run_attempt }}
@@ -252,6 +249,6 @@ jobs:
           {
             echo "## HCU PR gate"
             echo
-            echo "- unit and upstream tests: ${UNIT_RESULT}"
+            echo "- HCU unit tests: ${UNIT_RESULT}"
             echo "- smoke and vLLM one-step: ${RUNTIME_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"

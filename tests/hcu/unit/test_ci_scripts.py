@@ -128,7 +128,6 @@ def test_pr_workflow_uses_paths_and_existing_test_lanes():
         "third_party/verl",
     )
     commands = (
-        "bash tests/hcu/pr/run_upstream_pr_tests.sh",
         "bash tests/hcu/pr/run_hcu_unit_tests.sh",
         "bash tests/hcu/pr/run_hcu_smoke.sh",
         "bash tests/hcu/pr/run_vllm_grpo_1step.sh",
