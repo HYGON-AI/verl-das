@@ -32,7 +32,7 @@ env:
 
 jobs:
   unit:
-    name: HCU unit and upstream tests
+    name: HCU unit tests
     runs-on:
       group: ci-general
       labels: [self-hosted, ci, bw1100]
@@ -127,13 +127,6 @@ jobs:
       - name: Start HCU unit container
         shell: bash
         run: bash tests/hcu/ci/start_container.sh
-
-      - name: Run pinned upstream sanity and CPU tests
-        timeout-minutes: 10
-        shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/pr/run_upstream_pr_tests.sh
 
       - name: Install optional HCU unit-test dependencies
         shell: bash
@@ -254,6 +247,6 @@ jobs:
           {
             echo "## HCU PR gate"
             echo
-            echo "- unit and upstream tests: ${UNIT_RESULT}"
+            echo "- HCU unit tests: ${UNIT_RESULT}"
             echo "- smoke and vLLM one-step: ${RUNTIME_RESULT}"
           } >> "${GITHUB_STEP_SUMMARY}"

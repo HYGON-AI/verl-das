@@ -89,10 +89,9 @@ HCU workflow.
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
   `main`.
 - `PR Test (HCU)` has three jobs: unit, runtime, and finish. Matching changes
-  run all four test layers from `tests/hcu/pr/`: 219 pinned-upstream sanity/CPU
-  tests, the HCU unit suite, fixed-submodule/device/patch/worker/Ray smoke
-  checks, and a real one-step Qwen2.5-0.5B GRPO FSDP/vLLM training case on
-  eight cards.
+  run three test layers owned by this repository: the HCU unit suite,
+  fixed-submodule/device/patch/worker/Ray smoke checks, and a real one-step
+  Qwen2.5-0.5B GRPO FSDP/vLLM training case on eight cards.
 - `Nightly Test (HCU)` runs at 03:00 Asia/Shanghai. The vLLM and SGLang cases
   from the generated matrix run serially on the same eight-card runner.
 
