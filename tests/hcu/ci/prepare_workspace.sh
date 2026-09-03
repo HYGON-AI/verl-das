@@ -24,6 +24,13 @@ prepare_hcu_workspace() {
         fi
     done
 
+    if [[ -e "${repo_root}/third_party/verl/.git" ]] &&
+        git -C "${repo_root}/third_party/verl" cat-file \
+            -e "HEAD:verl/__init__.py" 2>/dev/null; then
+        git -C "${repo_root}/third_party/verl" restore \
+            --source=HEAD --staged --worktree -- verl/__init__.py
+    fi
+
     git -C "${repo_root}" submodule sync --recursive
     for attempt in 1 2 3; do
         if git -c http.version=HTTP/1.1 -C "${repo_root}" submodule update \
