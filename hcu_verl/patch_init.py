@@ -17,12 +17,13 @@ import importlib
 import logging
 import os
 
+import torch
 from packaging.version import parse as parse_version
 
-from verl.protocol import DataProto
-from verl.utils.device import is_npu_available, is_cuda_available
-from verl.utils.import_utils import import_external_libs
-from verl.utils.logging_utils import set_basic_config
+from .protocol import DataProto
+from .utils.device import is_npu_available
+from .utils.import_utils import import_external_libs
+from .utils.logging_utils import set_basic_config
 
 version_folder = os.path.dirname(os.path.join(os.path.abspath(__file__)))
 
@@ -124,5 +125,6 @@ if is_npu_available:
 
         TensorDictBase._sync_all = _sync_all_patch
 
-if is_cuda_available:
+# Here need a adaptor on Hygon HCU
+if torch.version.hip is not None:
     from hcu_verl import verl_adaptor
