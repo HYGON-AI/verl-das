@@ -17,6 +17,7 @@ import importlib
 import logging
 import os
 
+import torch
 from packaging.version import parse as parse_version
 
 from .protocol import DataProto
