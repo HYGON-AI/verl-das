@@ -147,16 +147,6 @@ jobs:
         shell: bash
         run: bash tests/hcu/ci/cleanup_container.sh
 
-      - name: Upload unit test logs
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-logs/
-          if-no-files-found: error
-          retention-days: 14
-
   runtime:
     name: HCU smoke and vLLM one-step
     needs:
@@ -213,16 +203,6 @@ jobs:
         if: always()
         shell: bash
         run: bash tests/hcu/ci/cleanup_container.sh
-
-      - name: Upload runtime test logs
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: verl-hcu-pr-runtime-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-logs/
-          if-no-files-found: error
-          retention-days: 14
 
   finish:
     name: Finish
