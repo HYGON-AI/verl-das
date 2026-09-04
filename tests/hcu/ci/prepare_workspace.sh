@@ -2,6 +2,31 @@
 
 set -euo pipefail
 
+normalize_submodule_gitdirs() {
+    local repo_root="$1"
+    local git_file git_dir relative_git_dir temp_file
+
+    while IFS= read -r -d '' git_file; do
+        IFS= read -r git_dir < "${git_file}" || continue
+        git_dir="${git_dir#gitdir: }"
+        case "${git_dir}" in
+            "${repo_root}/.git/"*) ;;
+            *) continue ;;
+        esac
+
+        if [[ ! -d "${git_dir}" ]]; then
+            echo "ERROR: submodule git directory is missing: ${git_dir}" >&2
+            return 1
+        fi
+        relative_git_dir="$(
+            realpath --relative-to="$(dirname "${git_file}")" "${git_dir}"
+        )"
+        temp_file="${git_file}.hcu-ci.$$"
+        printf 'gitdir: %s\n' "${relative_git_dir}" > "${temp_file}"
+        mv -f -- "${temp_file}" "${git_file}"
+    done < <(find "${repo_root}/third_party" -type f -name .git -print0)
+}
+
 prepare_hcu_workspace() {
     local script_dir repo_root patch_source patch_target joined_python_path patch_tmp
     local attempt
@@ -44,6 +69,7 @@ prepare_hcu_workspace() {
         echo "WARNING: retrying HCU CI submodules after attempt ${attempt}" >&2
         sleep "$((attempt * 5))"
     done
+    normalize_submodule_gitdirs "${repo_root}"
     python3 "${script_dir}/verify_submodules.py" --repo-root "${repo_root}"
 
     python_paths=(

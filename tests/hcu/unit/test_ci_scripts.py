@@ -117,6 +117,21 @@ def test_workflows_restore_workspace_before_checkout():
         )
 
 
+def test_workflows_repair_persisted_submodule_metadata_before_checkout():
+    jobs = {
+        "pr-test-hcu.yml": ("unit", "runtime"),
+        "nightly-test-hcu.yml": ("plan", "nightly"),
+    }
+
+    for workflow_name, job_names in jobs.items():
+        workflow_jobs = workflow_job_blocks(read_workflow(workflow_name))
+        for job_name in job_names:
+            job = workflow_jobs[job_name]
+            assert job.index("Repair persisted submodule metadata") < job.index(
+                "Checkout repository"
+            )
+
+
 def test_pr_workflow_uses_paths_and_existing_test_lanes():
     workflow = read_workflow("pr-test-hcu.yml")
     jobs = workflow_job_blocks(workflow)

@@ -72,6 +72,23 @@ jobs:
             "${VERL_HCU_CI_IMAGE}" \
             chown -R -- "${owner}" /workspace
 
+      - name: Repair persisted submodule metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git_file="${GITHUB_WORKSPACE}/third_party/verl/recipe/.git"
+          module_dir="${GITHUB_WORKSPACE}/.git/modules/third_party/verl/modules/recipe"
+          stale='gitdir: /workspace/.git/modules/third_party/verl/modules/recipe'
+          fixed='gitdir: ../../../.git/modules/third_party/verl/modules/recipe'
+          if [[ -f "${git_file}" ]] && grep -Fqx "${stale}" "${git_file}"; then
+            [[ -d "${module_dir}" ]] || { echo "ERROR: incomplete recipe submodule metadata" >&2; exit 1; }
+            temp_file="${git_file}.hcu-ci.$$"
+            printf '%s\n' "${fixed}" > "${temp_file}"
+            mv -f -- "${temp_file}" "${git_file}"
+            echo "Repaired persisted recipe submodule metadata."
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -133,6 +150,23 @@ jobs:
       VERL_HCU_CI_RUN_ID: nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ci-logs/nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Repair persisted submodule metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git_file="${GITHUB_WORKSPACE}/third_party/verl/recipe/.git"
+          module_dir="${GITHUB_WORKSPACE}/.git/modules/third_party/verl/modules/recipe"
+          stale='gitdir: /workspace/.git/modules/third_party/verl/modules/recipe'
+          fixed='gitdir: ../../../.git/modules/third_party/verl/modules/recipe'
+          if [[ -f "${git_file}" ]] && grep -Fqx "${stale}" "${git_file}"; then
+            [[ -d "${module_dir}" ]] || { echo "ERROR: incomplete recipe submodule metadata" >&2; exit 1; }
+            temp_file="${git_file}.hcu-ci.$$"
+            printf '%s\n' "${fixed}" > "${temp_file}"
+            mv -f -- "${temp_file}" "${git_file}"
+            echo "Repaired persisted recipe submodule metadata."
+          fi
+
       - name: Checkout repository and fixed submodules
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -174,15 +208,6 @@ jobs:
         if: always()
         shell: bash
         run: bash tests/hcu/ci/cleanup_container.sh
-
-      - name: Upload nightly logs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: verl-hcu-nightly-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-logs/
-          if-no-files-found: error
-          retention-days: 14
 
   finish:
     name: Finish
