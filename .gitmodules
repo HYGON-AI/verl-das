@@ -8,3 +8,6 @@
 [submodule "third_party/VeOmni"]
 	path = third_party/VeOmni
 	url = https://github.com/ByteDance-Seed/VeOmni.git
+[submodule "third_party/verl-SpeCo"]
+	path = third_party/verl-SpeCo
+	url = https://github.com/verl-project/verl-SpeCo.git
