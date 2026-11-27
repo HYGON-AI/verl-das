@@ -1,14 +1,13 @@
 name: PR Test (HCU)
 
 on:
+  # Label-triggered: a maintainer adding `run-ci` starts HCU PR CI. Opening,
+  # pushing, reopening or marking the PR ready for review no longer does.
   pull_request_target:
     branches:
       - main
     types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
+      - labeled
     paths:
       - "hcu_verl/**"
       - "tests/hcu/**"
@@ -21,7 +20,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: pr-test-hcu-${{ github.event.pull_request.number || github.ref }}
+  # Unrelated label events get a throwaway group: they skip every job and must
+  # not cancel or queue behind the HCU run they share a PR with.
+  group: pr-test-hcu-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'run-ci' && github.run_id || 'checks' }}
   cancel-in-progress: true
 
 permissions:
@@ -33,12 +34,17 @@ env:
 jobs:
   unit:
     name: HCU unit tests
-    runs-on:
-      group: ci-general
-      labels: [self-hosted, ci, bw1100]
+    # HCU CI runs only when `run-ci` is added (the workflow accepts no other
+    # PR event); unrelated label additions skip the whole graph.
+    if: github.event_name != 'pull_request_target' || github.event.label.name == 'run-ci'
+    # ARC K8s pool: the job template provides the eight HCU devices, /dev/shm,
+    # /opt/hyhal, /public and /ci_public, and the job runs inside the CI image
+    # (no docker-in-job).
+    runs-on: hygon-bw1100-8card
     timeout-minutes: 90
+    container:
+      image: ${{ vars.VERL_HCU_CI_IMAGE }}
     env:
-      VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-unit-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_RUN_ID: unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ci-logs/unit-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_SOURCE_REPOSITORY: >-
@@ -52,55 +58,6 @@ jobs:
       TRANSFORMERS_VERBOSITY: error
       VLLM_CUDART_SO_PATH: /opt/dtk/hip/lib/libgalaxyhip.so
     steps:
-      - name: Restore existing workspace ownership
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          workspace="$(realpath -m -- "${GITHUB_WORKSPACE}")"
-          runner_temp="$(realpath -m -- "${RUNNER_TEMP}")"
-          work_root="$(dirname -- "${runner_temp}")"
-          case "${workspace}" in
-            "${work_root}"/*/*) ;;
-            *)
-              echo "ERROR: refusing to change ownership outside ${work_root}: ${workspace}" >&2
-              exit 1
-              ;;
-          esac
-
-          owner="$(stat -c '%u:%g' -- "${runner_temp}")"
-          if [[ ! "${owner}" =~ ^[1-9][0-9]*:[0-9]+$ ]]; then
-            echo "ERROR: unsafe runner ownership: ${owner}" >&2
-            exit 1
-          fi
-          if [[ -z "${VERL_HCU_CI_IMAGE}" ]]; then
-            echo "ERROR: VERL_HCU_CI_IMAGE is required" >&2
-            exit 1
-          fi
-
-          docker run --rm \
-            --user root \
-            --volume "${workspace}:/workspace" \
-            "${VERL_HCU_CI_IMAGE}" \
-            chown -R -- "${owner}" /workspace
-
-      - name: Repair persisted submodule metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git_file="${GITHUB_WORKSPACE}/third_party/verl/recipe/.git"
-          module_dir="${GITHUB_WORKSPACE}/.git/modules/third_party/verl/modules/recipe"
-          stale='gitdir: /workspace/.git/modules/third_party/verl/modules/recipe'
-          fixed='gitdir: ../../../.git/modules/third_party/verl/modules/recipe'
-          if [[ -f "${git_file}" ]] && grep -Fqx "${stale}" "${git_file}"; then
-            [[ -d "${module_dir}" ]] || { echo "ERROR: incomplete recipe submodule metadata" >&2; exit 1; }
-            temp_file="${git_file}.hcu-ci.$$"
-            printf '%s\n' "${fixed}" > "${temp_file}"
-            mv -f -- "${temp_file}" "${git_file}"
-            echo "Repaired persisted recipe submodule metadata."
-          fi
-
       - name: Authorize PR source
         if: github.event_name == 'pull_request_target'
         shell: bash
@@ -130,50 +87,35 @@ jobs:
         run: |
           set -euo pipefail
 
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            --network none \
-            --env VERL_HCU_CI_IMAGE \
-            --env VERL_HCU_MODEL_ROOT \
-            --env VERL_HCU_DATA_ROOT \
-            --volume "${GITHUB_WORKSPACE}:/workspace:ro" \
-            --workdir /workspace \
-            "${VERL_HCU_CI_IMAGE}" \
-            python3 tests/hcu/ci/check_environment.py config
-
-      - name: Start HCU unit container
-        shell: bash
-        run: bash tests/hcu/ci/start_container.sh
+          python3 tests/hcu/ci/check_environment.py config
 
       - name: Install optional HCU unit-test dependencies
         shell: bash
         run: >-
-          bash tests/hcu/ci/exec_container.sh
-          --env PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple --
-          python3 -m pip install --no-cache-dir TransferQueue==0.1.9 mlflow
+          python3 -m pip install --no-cache-dir
+          --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+          TransferQueue==0.1.9 mlflow
 
       - name: Run HCU unit tests
         timeout-minutes: 60
         shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/pr/run_hcu_unit_tests.sh
+        run: bash tests/hcu/pr/run_hcu_unit_tests.sh
 
-      - name: Cleanup HCU unit container
+      - name: Cleanup HCU CI resources
         if: always()
         shell: bash
-        run: bash tests/hcu/ci/cleanup_container.sh
+        run: bash tests/hcu/ci/cleanup.sh
 
   runtime:
     name: HCU smoke and vLLM one-step
     needs:
       - unit
-    runs-on:
-      group: ci-general
-      labels: [self-hosted, ci, bw1100]
+    # ARC K8s pool, same container/device injection as the unit job.
+    runs-on: hygon-bw1100-8card
     timeout-minutes: 60
+    container:
+      image: ${{ vars.VERL_HCU_CI_IMAGE }}
     env:
-      VERL_HCU_CI_CONTAINER_NAME: verl-hcu-pr-runtime-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_RUN_ID: runtime-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_CI_LOG_DIR: ci-logs/runtime-pr-${{ github.run_id }}-${{ github.run_attempt }}
       VERL_HCU_SOURCE_REPOSITORY: >-
@@ -182,23 +124,6 @@ jobs:
       VERL_HCU_MODEL_ROOT: ${{ vars.VERL_HCU_MODEL_ROOT }}
       VERL_HCU_DATA_ROOT: ${{ vars.VERL_HCU_DATA_ROOT }}
     steps:
-      - name: Repair persisted submodule metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git_file="${GITHUB_WORKSPACE}/third_party/verl/recipe/.git"
-          module_dir="${GITHUB_WORKSPACE}/.git/modules/third_party/verl/modules/recipe"
-          stale='gitdir: /workspace/.git/modules/third_party/verl/modules/recipe'
-          fixed='gitdir: ../../../.git/modules/third_party/verl/modules/recipe'
-          if [[ -f "${git_file}" ]] && grep -Fqx "${stale}" "${git_file}"; then
-            [[ -d "${module_dir}" ]] || { echo "ERROR: incomplete recipe submodule metadata" >&2; exit 1; }
-            temp_file="${git_file}.hcu-ci.$$"
-            printf '%s\n' "${fixed}" > "${temp_file}"
-            mv -f -- "${temp_file}" "${git_file}"
-            echo "Repaired persisted recipe submodule metadata."
-          fi
-
       - name: Checkout repository and fixed submodules
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -209,44 +134,33 @@ jobs:
           clean: true
           persist-credentials: false
 
-      - name: Start HCU runtime container
-        shell: bash
-        run: bash tests/hcu/ci/start_container.sh
-
       - name: Run HCU smoke
         timeout-minutes: 20
         shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/pr/run_hcu_smoke.sh
+        run: bash tests/hcu/pr/run_hcu_smoke.sh
 
       - name: Reset smoke resources
         shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/ci/cleanup.sh
+        run: bash tests/hcu/ci/cleanup.sh
 
       - name: Run HCU vLLM GRPO one-step E2E
         timeout-minutes: 30
         shell: bash
-        run: >-
-          bash tests/hcu/ci/exec_container.sh --
-          bash tests/hcu/pr/run_vllm_grpo_1step.sh
+        run: bash tests/hcu/pr/run_vllm_grpo_1step.sh
 
-      - name: Cleanup HCU runtime container
+      - name: Cleanup HCU CI resources
         if: always()
         shell: bash
-        run: bash tests/hcu/ci/cleanup_container.sh
+        run: bash tests/hcu/ci/cleanup.sh
 
   finish:
     name: Finish
-    if: always()
+    # Keep the aggregate check from turning unrelated label events red.
+    if: always() && (github.event_name != 'pull_request_target' || github.event.label.name == 'run-ci')
     needs:
       - unit
       - runtime
-    runs-on:
-      group: ci-general
-      labels: [self-hosted, ci, bw1100]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Evaluate required jobs

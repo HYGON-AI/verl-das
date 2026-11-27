@@ -21,8 +21,8 @@ together:
 registry.example.com/project/image:version-tag
 ```
 
-The workflows validate the configured image before starting Docker. Their shared
-configuration check validates the model and dataset roots used by model tests.
+The shared configuration check validates the model and dataset roots used by
+model tests.
 
 All HCU CI assets use the runner-shared directory:
 
@@ -31,10 +31,15 @@ VERL_HCU_MODEL_ROOT=/ci_public/verl-das/models
 VERL_HCU_DATA_ROOT=/ci_public/verl-das/data
 ```
 
-The workflow mounts the model root and only
-`${VERL_HCU_DATA_ROOT}/gsm8k` into the container, both read-only.
+Both paths are read directly from inside the job container (the PR jobs run on
+the ARC K8s pool, whose template injects `/public` and `/ci_public`).
 
-The current PR smoke and nightly model baselines run on an eight-card runner.
+The PR jobs run on the `hygon-bw1100-8card` ARC K8s pool: the job template
+injects the eight HCU cards, `/dev/shm`, `/opt/hyhal`, `/public` and
+`/ci_public`, and the job itself runs inside `VERL_HCU_CI_IMAGE`, so no
+Docker-in-Docker is required. The nightly workflow still runs on the host
+runner labelled `bw1100` and keeps the Docker-based launchers.
+
 All HCU CI support and test launchers live under `tests/hcu/`: shared helpers
 are in `tests/hcu/ci/`, PR smoke is in `tests/hcu/pr/`, and nightly launchers
 are in `tests/hcu/nightly/`.
@@ -45,17 +50,19 @@ nightly job matrix, so adding a model requires only a launcher and one case
 entry. Manual runs accept `all`, an engine name, an exact case ID, or a
 comma-separated selection.
 
-The runner must provide Docker, `/opt/hyhal`, and the model and dataset roots
-configured above. Runtime dependencies belong in the pinned images. The PR
-unit lane installs its optional Python dependencies before the suite. The vLLM
-launcher also installs the fixed `TransferQueue==0.1.9` package when the pinned
-runtime image does not already provide it.
+The nightly runner must provide Docker, `/opt/hyhal`, and the model and dataset
+roots configured above; the PR ARC pool provides the cards, `/opt/hyhal`,
+`/public` and `/ci_public` directly. Runtime dependencies belong in the pinned
+images. The PR unit lane installs its optional Python dependencies before the
+suite. The vLLM launcher also installs the fixed `TransferQueue==0.1.9` package
+when the pinned runtime image does not already provide it.
 
-HCU containers are started and removed explicitly inside each test job. The
-cleanup step stops only resources carrying the current CI run ID, restores the
-mounted checkout to the runner UID/GID while the container is still running,
-and then removes that exact container. This avoids separate permission-repair
-jobs and leaves `actions/checkout` post-job cleanup a runner-owned workspace.
+The nightlies still start and remove HCU containers explicitly inside each job;
+the cleanup step stops only resources carrying the current CI run ID, restores
+the mounted checkout to the runner UID/GID while the container is still
+running, and then removes that exact container. The PR jobs run inside the image
+itself and use the same cleanup helper for Ray, PID and temporary-directory
+state instead.
 
 The PR gate uses `pull_request_target`, so its authorization and runner
 dispatch logic always come from the default branch rather than the PR. HCU
@@ -69,8 +76,10 @@ the default branch's `pull_request_target` workflow.
 
 ## Workflows
 
-Pull requests targeting `main` start the HCU workflow when they are opened,
-updated, reopened, or marked ready for review and change one of these paths:
+Pull requests targeting `main` start the HCU workflow when a maintainer adds
+the `run-ci` label; opening, updating, reopening or marking a pull request
+ready for review no longer starts it. The workflow only runs for label events
+and only when the pull request changes one of these paths:
 
 - `hcu_verl/**`
 - `tests/hcu/**`
@@ -84,6 +93,11 @@ updated, reopened, or marked ready for review and change one of these paths:
 GitHub applies these filters before dispatching any HCU runner job. Matching
 pull requests run the complete PR suite; unrelated changes do not start the
 HCU workflow.
+
+`run-ci` stays on the pull request after it dispatches a run, and because the
+workflow no longer listens to pushes, HCU CI runs once per label addition. To
+start another run, remove the label and add it again (adding an already-present
+label produces no new event).
 
 - `Quality Gate` reuses the organization-wide incremental checks from
   `HYGON-AI/quality-gate`. It runs independently for pull requests targeting
